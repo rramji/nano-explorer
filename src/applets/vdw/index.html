@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vdW Potential Components — Nano Explorer</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #eef1f6;
+      color: #222;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 310px 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    /* ---- Controls ---- */
+    .controls {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      overflow-y: auto;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7080a0;
+      margin: 14px 0 8px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    .param {
+      margin-bottom: 12px;
+    }
+    .param label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 3px;
+    }
+    .param label .name { font-weight: 600; color: #334; }
+    .param label .value { color: #1b2a4a; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .param input[type=range] {
+      width: 100%;
+      accent-color: #1b2a4a;
+      cursor: pointer;
+      height: 4px;
+    }
+    .param .hint {
+      font-size: 0.7rem;
+      color: #9aabb0;
+      margin-top: 2px;
+    }
+
+    /* molecule presets */
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 4px;
+    }
+    .presets button {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border: 1.5px solid #c8d4e4;
+      border-radius: 20px;
+      background: #f5f7fa;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #334;
+    }
+    .presets button:hover  { background: #e0e8f5; border-color: #8090b8; }
+    .presets button.active { background: #1b2a4a; border-color: #1b2a4a; color: #fff; }
+
+    /* molecule section divider */
+    .mol-section {
+      border: 1.5px solid #e8eef5;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .mol-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #1b2a4a;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mol-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* copy button */
+    .copy-btn {
+      margin-left: auto;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border: 1.5px solid #c8d4e4;
+      border-radius: 10px;
+      background: #f5f7fa;
+      cursor: pointer;
+      color: #5060a0;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .copy-btn:hover { background: #e0e8f5; border-color: #8090b8; color: #1b2a4a; }
+
+    /* ---- Plot area ---- */
+    .plot-area {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #plot {
+      height: clamp(360px, calc(100vh - 280px), 800px);
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    }
+
+    /* ---- Info panel ---- */
+    .info-panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      display: flex;
+      gap: 0;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+
+    .info-item {
+      flex: 1;
+      min-width: 110px;
+      padding: 0 14px;
+      border-right: 1px solid #eef1f6;
+      text-align: center;
+    }
+    .info-item:first-child { padding-left: 0; }
+    .info-item:last-child  { border-right: none; }
+
+    .info-item .label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #8090a8;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .info-item .val {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1b2a4a;
+      font-variant-numeric: tabular-nums;
+    }
+    .info-item .sub {
+      font-size: 0.68rem;
+      color: #8090a8;
+      margin-top: 1px;
+    }
+
+    /* C6 breakdown bar */
+    .breakdown-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 6px;
+      width: 100%;
+    }
+    .bar-seg { transition: width 0.25s; }
+
+    @media (max-width: 900px) {
+      .main { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="logo" href="/nano-explorer/">Nano <span>Explorer</span></a>
+  <a class="back-link" href="/nano-explorer/">← All applets</a>
+</header>
+
+<header style="background:#1b2a4a; color:#fff; padding:10px 24px 14px;">
+  <h1 style="font-size:1.1rem; font-weight:700;">van der Waals Potential Components</h1>
+  <p style="font-size:0.8rem; opacity:0.65; margin-top:2px;">Keesom (orientation) · Debye (induction) · London (dispersion) — pair potential between two molecules</p>
+</header>
+
+<div class="main">
+
+  <!-- ==================== CONTROLS ==================== -->
+  <div class="controls">
+
+    <!-- Molecule 1 -->
+    <div class="section-title">Molecule 1</div>
+    <div class="mol-section">
+      <div class="mol-label">
+        <div class="mol-dot" style="background:#e05c3a;"></div>
+        Molecule A
+      </div>
+
+      <div class="param">
+        <label><span class="name">Presets</span></label>
+        <div class="presets" id="presets-1"></div>
+      </div>
+
+      <div class="param">
+        <label>
+          <span class="name">Dipole moment <em>μ₁</em></span>
+          <span class="value" id="lbl-mu1">1.85 D</span>
+        </label>
+        <input type="range" id="sl-mu1" min="0" max="5" step="0.05" value="1.85" />
+        <div class="hint">0 = nonpolar · water 1.85 D · acetone 2.88 D</div>
+      </div>
+
+      <div class="param">
+        <label>
+          <span class="name">Polarizability <em>α₁</em></span>
+          <span class="value" id="lbl-a1">1.45 Å³</span>
+        </label>
+        <input type="range" id="sl-a1" min="0.1" max="20" step="0.05" value="1.45" />
+        <div class="hint">Polarizability volume · He 0.2 Å³ · benzene 9.15 Å³</div>
+      </div>
+
+      <div class="param">
+        <label>
+          <span class="name">Ionization energy <em>I₁</em></span>
+          <span class="value" id="lbl-I1">12.6 eV</span>
+        </label>
+        <input type="range" id="sl-I1" min="5" max="25" step="0.1" value="12.6" />
+        <div class="hint">First ionization potential</div>
+      </div>
+    </div>
+
+    <!-- Molecule 2 -->
+    <div class="section-title">Molecule 2</div>
+    <div class="mol-section">
+      <div class="mol-label">
+        <div class="mol-dot" style="background:#2575e8;"></div>
+        Molecule B
+        <button class="copy-btn" id="btn-copy">= Molecule A</button>
+      </div>
+
+      <div class="param">
+        <label><span class="name">Presets</span></label>
+        <div class="presets" id="presets-2"></div>
+      </div>
+
+      <div class="param">
+        <label>
+          <span class="name">Dipole moment <em>μ₂</em></span>
+          <span class="value" id="lbl-mu2">1.85 D</span>
+        </label>
+        <input type="range" id="sl-mu2" min="0" max="5" step="0.05" value="1.85" />
+      </div>
+
+      <div class="param">
+        <label>
+          <span class="name">Polarizability <em>α₂</em></span>
+          <span class="value" id="lbl-a2">1.45 Å³</span>
+        </label>
+        <input type="range" id="sl-a2" min="0.1" max="20" step="0.05" value="1.45" />
+      </div>
+
+      <div class="param">
+        <label>
+          <span class="name">Ionization energy <em>I₂</em></span>
+          <span class="value" id="lbl-I2">12.6 eV</span>
+        </label>
+        <input type="range" id="sl-I2" min="5" max="25" step="0.1" value="12.6" />
+      </div>
+    </div>
+
+    <!-- Conditions -->
+    <div class="section-title">Conditions</div>
+
+    <div class="param">
+      <label>
+        <span class="name">Temperature <em>T</em></span>
+        <span class="value" id="lbl-T">298 K</span>
+      </label>
+      <input type="range" id="sl-T" min="200" max="500" step="1" value="298" />
+      <div class="hint">Affects Keesom term only · 298 K = 25 °C</div>
+    </div>
+
+    <!-- Display -->
+    <div class="section-title">Display</div>
+
+    <div class="param" style="display:flex; gap:14px; flex-wrap:wrap; row-gap:6px;">
+      <label style="font-size:0.82rem; font-weight:600; color:#334; display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="cb-keesom" checked />
+        <span style="color:#e05c3a">Keesom</span>
+      </label>
+      <label style="font-size:0.82rem; font-weight:600; color:#334; display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="cb-debye" checked />
+        <span style="color:#22aa66">Debye</span>
+      </label>
+      <label style="font-size:0.82rem; font-weight:600; color:#334; display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="cb-london" checked />
+        <span style="color:#2575e8">London</span>
+      </label>
+    </div>
+
+  </div>
+
+  <!-- ==================== PLOT AREA ==================== -->
+  <div class="plot-area">
+    <div id="plot"></div>
+
+    <div class="info-panel">
+      <div class="info-item">
+        <div class="label">C₆ total</div>
+        <div class="val" id="inf-C6">—</div>
+        <div class="sub">×10⁻⁷⁹ J·m⁶</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Keesom %</div>
+        <div class="val" id="inf-pct-K" style="color:#e05c3a">—</div>
+        <div class="sub">orientation</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Debye %</div>
+        <div class="val" id="inf-pct-D" style="color:#22aa66">—</div>
+        <div class="sub">induction</div>
+      </div>
+      <div class="info-item">
+        <div class="label">London %</div>
+        <div class="val" id="inf-pct-L" style="color:#2575e8">—</div>
+        <div class="sub">dispersion</div>
+      </div>
+      <div class="info-item" style="min-width:140px;">
+        <div class="label">Breakdown</div>
+        <div class="breakdown-bar" id="breakdown-bar">
+          <div class="bar-seg" id="bar-K" style="background:#e05c3a;"></div>
+          <div class="bar-seg" id="bar-D" style="background:#22aa66;"></div>
+          <div class="bar-seg" id="bar-L" style="background:#2575e8;"></div>
+        </div>
+        <div class="sub" style="margin-top:4px;" id="inf-Vmin">V(r<sub>min</sub>) = — k<sub>B</sub>T</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  Physical constants & conversion factors
+// ============================================================
+const KB = 1.380649e-23;   // J/K
+
+// CGS approach: all intermediate C6 computed in erg·cm⁶, then × CGS_TO_SI → J·m⁶
+const D_CGS      = 1e-18;   // 1 Debye in esu·cm
+const A3_CGS     = 1e-24;   // 1 Å³  in cm³
+const EV_ERG     = 1.602e-12; // 1 eV in erg
+const CGS_TO_SI  = 1e-19;   // erg·cm⁶ → J·m⁶
+
+// ============================================================
+//  Molecule presets
+// ============================================================
+const PRESETS = [
+  { name: 'Water',    mu: 1.85, alpha: 1.45,  I: 12.6 },
+  { name: 'Methanol', mu: 1.70, alpha: 3.23,  I: 10.8 },
+  { name: 'Acetone',  mu: 2.88, alpha: 6.39,  I:  9.7 },
+  { name: 'CHCl₃',   mu: 1.01, alpha: 8.23,  I: 11.4 },
+  { name: 'CO₂',     mu: 0,    alpha: 2.51,  I: 13.8 },
+  { name: 'CH₄',     mu: 0,    alpha: 2.60,  I: 12.6 },
+  { name: 'Benzene',  mu: 0,    alpha: 9.15,  I:  9.25 },
+  { name: 'N₂',      mu: 0,    alpha: 1.76,  I: 15.6 },
+  { name: 'Ar',      mu: 0,    alpha: 1.64,  I: 15.8 },
+];
+
+// ============================================================
+//  State
+// ============================================================
+const state = {
+  mu1: 1.85, alpha1: 1.45, I1: 12.6,
+  mu2: 1.85, alpha2: 1.45, I2: 12.6,
+  T:   298,
+  showKeesom: true,
+  showDebye:  true,
+  showLondon: true,
+};
+
+// ============================================================
+//  Computation
+// ============================================================
+function computeC6(s) {
+  const { mu1, alpha1, I1, mu2, alpha2, I2, T } = s;
+  const kT_erg = KB * T * 1e7;   // kT in erg
+
+  // Convert to CGS
+  const u1 = mu1 * D_CGS;
+  const u2 = mu2 * D_CGS;
+  const a1 = alpha1 * A3_CGS;
+  const a2 = alpha2 * A3_CGS;
+  const i1 = I1 * EV_ERG;
+  const i2 = I2 * EV_ERG;
+
+  // C6 in erg·cm⁶
+  const C6K_cgs = (u1 * u1 * u2 * u2) / (3 * kT_erg);
+  const C6D_cgs = u1*u1*a2 + u2*u2*a1;
+  const C6L_cgs = 1.5 * a1 * a2 * (i1 * i2) / (i1 + i2);
+
+  // Convert to SI (J·m⁶)
+  const C6K = C6K_cgs * CGS_TO_SI;
+  const C6D = C6D_cgs * CGS_TO_SI;
+  const C6L = C6L_cgs * CGS_TO_SI;
+  const C6T = C6K + C6D + C6L;
+
+  return { C6K, C6D, C6L, C6T };
+}
+
+function buildCurves(s) {
+  const { C6K, C6D, C6L, C6T } = computeC6(s);
+  const kT = KB * s.T;
+
+  const N = 400;
+  const r_min = 0.28e-9;
+  const r_max = 2.0e-9;
+  const r_arr = [], VK_arr = [], VD_arr = [], VL_arr = [], VT_arr = [];
+
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    // quadratic spacing — more points near contact
+    const r = r_min + (r_max - r_min) * t * t;
+    const r6 = Math.pow(r, 6);
+
+    r_arr.push(r * 1e9);
+    VK_arr.push(-C6K / (r6 * kT));
+    VD_arr.push(-C6D / (r6 * kT));
+    VL_arr.push(-C6L / (r6 * kT));
+    VT_arr.push(-C6T / (r6 * kT));
+  }
+
+  return { r_arr, VK_arr, VD_arr, VL_arr, VT_arr, C6K, C6D, C6L, C6T };
+}
+
+// ============================================================
+//  Plot
+// ============================================================
+let plotInited = false;
+
+function update() {
+  const res = buildCurves(state);
+  const { r_arr, VK_arr, VD_arr, VL_arr, VT_arr, C6K, C6D, C6L, C6T } = res;
+
+  // y range: clip near contact divergence, show total range sensibly
+  const vis = VT_arr.slice(10);
+  const yMin = Math.max(Math.min(...vis) * 1.05, -60);
+  const yMax = 2;
+
+  const traces = [];
+
+  if (state.showKeesom && C6K > 0) traces.push({
+    x: r_arr, y: VK_arr,
+    name: 'V<sub>Keesom</sub> (orientation)',
+    line: { color: '#e05c3a', width: 1.8, dash: 'dot' },
+    type: 'scatter', mode: 'lines',
+  });
+  if (state.showDebye && C6D > 0) traces.push({
+    x: r_arr, y: VD_arr,
+    name: 'V<sub>Debye</sub> (induction)',
+    line: { color: '#22aa66', width: 1.8, dash: 'dot' },
+    type: 'scatter', mode: 'lines',
+  });
+  if (state.showLondon) traces.push({
+    x: r_arr, y: VL_arr,
+    name: 'V<sub>London</sub> (dispersion)',
+    line: { color: '#2575e8', width: 1.8, dash: 'dot' },
+    type: 'scatter', mode: 'lines',
+  });
+  traces.push({
+    x: r_arr, y: VT_arr,
+    name: 'V<sub>vdW</sub> total',
+    line: { color: '#1b2a4a', width: 2.5 },
+    type: 'scatter', mode: 'lines',
+  });
+
+  const layout = {
+    xaxis: {
+      title: 'Centre-centre separation <i>r</i> (nm)',
+      range: [r_arr[0], r_arr[r_arr.length - 1]],
+      zeroline: false, gridcolor: '#f0f2f5',
+    },
+    yaxis: {
+      title: 'Interaction energy V / k<sub>B</sub>T',
+      range: [yMin, yMax],
+      zeroline: false, gridcolor: '#f0f2f5',
+    },
+    shapes: [{
+      type: 'line',
+      x0: r_arr[0], x1: r_arr[r_arr.length-1], y0: 0, y1: 0,
+      line: { color: '#ccc', width: 1 }, layer: 'below',
+    }],
+    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.08 },
+    margin: { t: 40, r: 20, b: 55, l: 65 },
+    paper_bgcolor: '#fff', plot_bgcolor: '#fff',
+    font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", size: 12 },
+    hovermode: 'x unified',
+  };
+
+  if (!plotInited) {
+    Plotly.newPlot('plot', traces, layout,
+      { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d'] });
+    plotInited = true;
+  } else {
+    Plotly.react('plot', traces, layout);
+  }
+
+  // Info panel
+  const unit = 1e-79; // display in units of 10⁻⁷⁹ J·m⁶
+  document.getElementById('inf-C6').textContent = (C6T / unit).toFixed(1);
+
+  const pK = C6T > 0 ? (C6K / C6T * 100) : 0;
+  const pD = C6T > 0 ? (C6D / C6T * 100) : 0;
+  const pL = C6T > 0 ? (C6L / C6T * 100) : 0;
+  document.getElementById('inf-pct-K').textContent = pK.toFixed(1) + '%';
+  document.getElementById('inf-pct-D').textContent = pD.toFixed(1) + '%';
+  document.getElementById('inf-pct-L').textContent = pL.toFixed(1) + '%';
+  document.getElementById('bar-K').style.width = pK.toFixed(1) + '%';
+  document.getElementById('bar-D').style.width = pD.toFixed(1) + '%';
+  document.getElementById('bar-L').style.width = pL.toFixed(1) + '%';
+
+  // V at 0.5 nm
+  const r_ref = 0.5e-9;
+  const kT    = KB * state.T;
+  const V_ref = -(C6T) / (Math.pow(r_ref, 6) * kT);
+  document.getElementById('inf-Vmin').innerHTML =
+    `V(0.5 nm) = ${V_ref.toFixed(2)} k<sub>B</sub>T`;
+}
+
+// ============================================================
+//  Preset buttons
+// ============================================================
+function buildPresets(id, molNum) {
+  const container = document.getElementById(id);
+  PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.textContent = p.name;
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (molNum === 1) {
+        state.mu1 = p.mu; state.alpha1 = p.alpha; state.I1 = p.I;
+        document.getElementById('sl-mu1').value = p.mu;
+        document.getElementById('sl-a1').value  = p.alpha;
+        document.getElementById('sl-I1').value  = p.I;
+        document.getElementById('lbl-mu1').textContent = `${p.mu.toFixed(2)} D`;
+        document.getElementById('lbl-a1').textContent  = `${p.alpha.toFixed(2)} Å³`;
+        document.getElementById('lbl-I1').textContent  = `${p.I.toFixed(1)} eV`;
+      } else {
+        state.mu2 = p.mu; state.alpha2 = p.alpha; state.I2 = p.I;
+        document.getElementById('sl-mu2').value = p.mu;
+        document.getElementById('sl-a2').value  = p.alpha;
+        document.getElementById('sl-I2').value  = p.I;
+        document.getElementById('lbl-mu2').textContent = `${p.mu.toFixed(2)} D`;
+        document.getElementById('lbl-a2').textContent  = `${p.alpha.toFixed(2)} Å³`;
+        document.getElementById('lbl-I2').textContent  = `${p.I.toFixed(1)} eV`;
+      }
+      update();
+    });
+    container.appendChild(btn);
+  });
+  // activate first preset (Water)
+  container.children[0].classList.add('active');
+}
+
+buildPresets('presets-1', 1);
+buildPresets('presets-2', 2);
+
+// ============================================================
+//  Slider wiring
+// ============================================================
+function wire(id, stateKey, lblId, fmt) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => {
+    state[stateKey] = parseFloat(el.value);
+    document.getElementById(lblId).textContent = fmt(parseFloat(el.value));
+    // clear preset highlight for the changed molecule
+    const mol = stateKey.endsWith('1') ? '1' : '2';
+    document.querySelectorAll(`#presets-${mol} button`).forEach(b => b.classList.remove('active'));
+    update();
+  });
+}
+
+wire('sl-mu1',   'mu1',    'lbl-mu1', v => `${v.toFixed(2)} D`);
+wire('sl-a1',    'alpha1', 'lbl-a1',  v => `${v.toFixed(2)} Å³`);
+wire('sl-I1',    'I1',     'lbl-I1',  v => `${v.toFixed(1)} eV`);
+wire('sl-mu2',   'mu2',    'lbl-mu2', v => `${v.toFixed(2)} D`);
+wire('sl-a2',    'alpha2', 'lbl-a2',  v => `${v.toFixed(2)} Å³`);
+wire('sl-I2',    'I2',     'lbl-I2',  v => `${v.toFixed(1)} eV`);
+
+document.getElementById('sl-T').addEventListener('input', function() {
+  state.T = parseFloat(this.value);
+  document.getElementById('lbl-T').textContent = `${this.value} K`;
+  update();
+});
+
+// copy button
+document.getElementById('btn-copy').addEventListener('click', () => {
+  state.mu2    = state.mu1;
+  state.alpha2 = state.alpha1;
+  state.I2     = state.I1;
+  document.getElementById('sl-mu2').value = state.mu1;
+  document.getElementById('sl-a2').value  = state.alpha1;
+  document.getElementById('sl-I2').value  = state.I1;
+  document.getElementById('lbl-mu2').textContent = `${state.mu1.toFixed(2)} D`;
+  document.getElementById('lbl-a2').textContent  = `${state.alpha1.toFixed(2)} Å³`;
+  document.getElementById('lbl-I2').textContent  = `${state.I1.toFixed(1)} eV`;
+  // sync preset highlight in mol2
+  const mol2presets = document.querySelectorAll('#presets-2 button');
+  mol2presets.forEach(b => b.classList.remove('active'));
+  // find matching preset name in mol1
+  const activeMol1 = document.querySelector('#presets-1 button.active');
+  if (activeMol1) {
+    mol2presets.forEach(b => { if (b.textContent === activeMol1.textContent) b.classList.add('active'); });
+  }
+  update();
+});
+
+document.getElementById('cb-keesom').addEventListener('change', e => { state.showKeesom = e.target.checked; update(); });
+document.getElementById('cb-debye').addEventListener('change',  e => { state.showDebye  = e.target.checked; update(); });
+document.getElementById('cb-london').addEventListener('change', e => { state.showLondon = e.target.checked; update(); });
+
+// ============================================================
+//  Init
+// ============================================================
+update();
+</script>
+
+<!-- ============================================================
+     EQUATIONS REFERENCE
+     ============================================================ -->
+<details style="padding:12px 24px 16px; background:#fff; border-top:1px solid #e8ecf2; font-size:0.8rem; color:#556; line-height:1.8;">
+  <summary style="cursor:pointer; font-weight:700; color:#1b2a4a; font-size:0.85rem; margin-bottom:4px;">Theory &amp; Equations</summary>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; margin-top:10px;">
+
+    <div>
+      <strong style="color:#e05c3a">Keesom (orientation) interaction</strong><br/>
+      V<sub>K</sub> = −C<sub>6</sub><sup>K</sup>/r⁶ · C<sub>6</sub><sup>K</sup> = μ₁²μ₂² / (3k<sub>B</sub>T)<br/>
+      Thermal average over all orientations of permanent dipoles. Requires μ ≠ 0. Decreases with T.
+    </div>
+
+    <div>
+      <strong style="color:#22aa66">Debye (induction) interaction</strong><br/>
+      V<sub>D</sub> = −C<sub>6</sub><sup>D</sup>/r⁶ · C<sub>6</sub><sup>D</sup> = μ₁²α₂ + μ₂²α₁<br/>
+      A permanent dipole polarises its neighbour. Requires at least one polar molecule. Temperature-independent.
+    </div>
+
+    <div>
+      <strong style="color:#2575e8">London (dispersion) interaction</strong><br/>
+      V<sub>L</sub> = −C<sub>6</sub><sup>L</sup>/r⁶ · C<sub>6</sub><sup>L</sup> = (3/2) α₁α₂ I₁I₂/(I₁+I₂)<br/>
+      Quantum-mechanical correlation between instantaneous dipole fluctuations. Present for <em>all</em> molecules. Dominant for nonpolar species.
+    </div>
+
+    <div>
+      <strong>Units &amp; formulas</strong><br/>
+      All formulas in CGS-Gaussian: μ in esu·cm (1 D = 10⁻¹⁸ esu·cm), α in cm³ (1 Å³ = 10⁻²⁴ cm³), I in erg (1 eV = 1.602×10⁻¹² erg). Convert C₆ to SI: × 10⁻¹⁹ → J·m⁶. V(r) = −C₆/r⁶ for each term.
+    </div>
+
+    <div>
+      <strong>Typical magnitudes (water–water, 25 °C)</strong><br/>
+      C₆<sup>K</sup> ≈ 95 · C₆<sup>D</sup> ≈ 10 · C₆<sup>L</sup> ≈ 33 (all ×10⁻⁷⁹ J·m⁶)<br/>
+      For nonpolar molecules (e.g. Ar, CH₄), Keesom = Debye = 0; London dominates entirely.
+    </div>
+
+    <div>
+      <strong>Hamaker &amp; macroscopic bodies</strong><br/>
+      Summing pair-wise London interactions over two macroscopic half-spaces gives V<sub>vdW</sub> = −A<sub>H</sub>R/(12h) (Derjaguin), where the Hamaker constant A<sub>H</sub> ≈ π²ρ₁ρ₂C<sub>6</sub><sup>L</sup>. See the DLVO applet for sphere–sphere interactions.
+    </div>
+
+  </div>
+</details>
+
+</body>
+</html>
