@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Derjaguin Approximation — Nano Explorer</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #eef1f6;
+      color: #222233;
+    }
+
+    .applet-title {
+      background: #fff;
+      border-bottom: 1px solid #e0e8f0;
+      padding: 14px 24px 12px;
+    }
+    .applet-title h1 { font-size: 1.2rem; font-weight: 700; color: #1b2a4a; }
+    .applet-title p  { font-size: 0.82rem; color: #7080a0; margin-top: 3px; }
+
+    .main {
+      display: grid;
+      grid-template-columns: 310px 1fr;
+      gap: 14px;
+      padding: 14px;
+      align-items: start;
+    }
+
+    /* ---- Controls ---- */
+    .controls {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    }
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7080a0;
+      margin: 14px 0 8px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    .param { margin-bottom: 12px; }
+    .param label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 3px;
+    }
+    .param label .name  { font-weight: 600; color: #334; }
+    .param label .value { color: #1b2a4a; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .param input[type=range] {
+      width: 100%;
+      accent-color: #1b2a4a;
+      cursor: pointer;
+      height: 4px;
+    }
+    .param .hint { font-size: 0.7rem; color: #9aabb0; margin-top: 2px; }
+
+    .pill-group { display: flex; gap: 6px; margin-top: 4px; }
+    .pill-group button {
+      flex: 1;
+      padding: 5px 0;
+      border: 2px solid #d0d8e8;
+      border-radius: 6px;
+      background: #f5f7fa;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #334;
+    }
+    .pill-group button.active { background: #1b2a4a; border-color: #1b2a4a; color: #fff; }
+
+    .presets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+    .presets button {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border: 1.5px solid #c8d4e4;
+      border-radius: 20px;
+      background: #f5f7fa;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #334;
+    }
+    .presets button:hover  { background: #e0e8f5; border-color: #8090b8; }
+    .presets button.active { background: #1b2a4a; border-color: #1b2a4a; color: #fff; }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .check-row input[type=checkbox] { accent-color: #1b2a4a; cursor: pointer; }
+    .check-swatch { flex-shrink: 0; width: 22px; height: 4px; border-radius: 2px; }
+
+    /* ---- Plot area ---- */
+    .plot-area { display: flex; flex-direction: column; gap: 12px; }
+
+    .viz-card {
+      background: #080c18;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.2);
+      position: relative;
+    }
+    #beadCanvas { display: block; width: 100%; height: 280px; }
+
+    /* computing overlay */
+    .computing-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(8,12,24,0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .computing-overlay.visible { opacity: 1; }
+    .computing-label {
+      color: rgba(160,200,255,0.9);
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .viz-legend {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .viz-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.6);
+    }
+    .viz-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    .viz-energy-scale {
+      position: absolute;
+      bottom: 10px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.5);
+    }
+
+    #energyPlot {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      height: 340px;
+    }
+
+    .info-panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+    }
+    .info-item {
+      flex: 1;
+      min-width: 80px;
+      padding: 0 12px;
+      border-right: 1px solid #e8eef5;
+    }
+    .info-item:first-child { padding-left: 0; }
+    .info-item:last-child  { border-right: none; }
+    .info-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #9aabb0;
+      margin-bottom: 3px;
+    }
+    .info-value {
+      font-size: 1rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #1b2a4a;
+    }
+    .info-sub { font-size: 0.7rem; color: #9aabb0; margin-top: 1px; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+    .badge-valid    { background: #d4f4e0; color: #1a7a42; }
+    .badge-marginal { background: #fdf3d0; color: #8a6000; }
+    .badge-invalid  { background: #fde0d8; color: #9a2020; }
+
+    /* ---- Theory block ---- */
+    .theory-block {
+      margin: 0 14px 14px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      overflow: hidden;
+    }
+    .theory-block summary {
+      padding: 14px 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1b2a4a;
+      cursor: pointer;
+      user-select: none;
+    }
+    .theory-block summary:hover { background: #f5f8fc; }
+    .theory-body {
+      padding: 4px 24px 20px;
+      font-size: 0.83rem;
+      color: #334;
+      line-height: 1.65;
+      border-top: 1px solid #e8eef5;
+    }
+    .theory-body h3 { font-size: 0.82rem; font-weight: 700; color: #1b2a4a; margin: 14px 0 5px; }
+    .theory-body code {
+      background: #f0f4fa; padding: 2px 6px; border-radius: 4px;
+      font-size: 0.8rem; font-family: 'Menlo', 'Consolas', monospace;
+    }
+    .theory-body table { border-collapse: collapse; margin: 10px 0; font-size: 0.8rem; width: 100%; }
+    .theory-body th, .theory-body td { border: 1px solid #e0e8f0; padding: 5px 10px; text-align: left; }
+    .theory-body th { background: #f5f8fc; font-weight: 700; }
+
+    @media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <a href="/nano-explorer/" class="back-link">← Nano Explorer</a>
+  <span class="logo">Nano Explorer <span>/ Derjaguin Approximation</span></span>
+</header>
+
+<div class="applet-title">
+  <h1>Derjaguin Approximation Explorer</h1>
+  <p>Pack objects with atom-scale beads, compute vdW energy bead-by-bead, and watch where the analytic Derjaguin approximation breaks down</p>
+</div>
+
+<div class="main">
+
+  <!-- ================================================== CONTROLS -->
+  <div class="controls">
+
+    <div class="section-title">Geometry</div>
+    <div class="pill-group">
+      <button id="btn-ss" class="active" onclick="setGeometry('ss')">Sphere–Sphere</button>
+      <button id="btn-sf"               onclick="setGeometry('sf')">Sphere–Flat</button>
+    </div>
+
+    <div class="section-title">Object Parameters</div>
+
+    <div class="param">
+      <label>
+        <span class="name">Sphere radius <i>R</i></span>
+        <span class="value" id="val-R">5 nm</span>
+      </label>
+      <input type="range" id="sl-R" min="1" max="10" step="0.5" value="5"
+             oninput="updateParam('R', +this.value)">
+    </div>
+
+    <div class="param">
+      <label>
+        <span class="name">Atoms per sphere <i>N</i></span>
+        <span class="value" id="val-N">200</span>
+      </label>
+      <input type="range" id="sl-N" min="50" max="2000" step="50" value="200"
+             oninput="updateParam('N', +this.value)">
+      <div class="hint" id="hint-N">more atoms → denser packing, slower compute</div>
+    </div>
+
+    <div class="param">
+      <label>
+        <span class="name">Hamaker constant <i>A</i></span>
+        <span class="value" id="val-A">6.5 zJ</span>
+      </label>
+      <input type="range" id="sl-A" min="-0.4" max="2.3" step="0.02" value="0.813"
+             oninput="updateParamA(+this.value)">
+      <div class="hint">log scale &nbsp;·&nbsp; 1 zJ = 10⁻²¹ J</div>
+    </div>
+
+    <div class="presets" id="material-presets">
+      <button onclick="applyPreset('sio2')" data-key="sio2">SiO₂/H₂O</button>
+      <button onclick="applyPreset('ps')"   data-key="ps">PS/H₂O</button>
+      <button onclick="applyPreset('tio2')" data-key="tio2">TiO₂/H₂O</button>
+      <button onclick="applyPreset('au')"   data-key="au">Au/H₂O</button>
+    </div>
+
+    <div class="section-title">Visualization</div>
+
+    <div class="param">
+      <label>
+        <span class="name">Separation <i>D</i></span>
+        <span class="value" id="val-D">0.5 nm</span>
+      </label>
+      <input type="range" id="sl-D" min="0.1" max="20" step="0.05" value="0.5"
+             oninput="updateD(+this.value)">
+      <div class="hint">live canvas update — no recompute</div>
+    </div>
+
+    <div class="section-title">Display</div>
+
+    <label class="check-row">
+      <input type="checkbox" id="ck-num"   checked onchange="toggleCurve()">
+      <span class="check-swatch" style="background:#2575e8;"></span>
+      Numerical (bead sum)
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="ck-da"    checked onchange="toggleCurve()">
+      <span class="check-swatch" style="background:none; border-top:3px dashed #e05c3a; height:0; margin-top:1px;"></span>
+      Derjaguin approx.
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="ck-exact" checked onchange="toggleCurve()">
+      <span class="check-swatch" style="background:none; border-top:2px dotted #22aa66; height:0; margin-top:1px;"></span>
+      Exact Hamaker
+    </label>
+
+  </div><!-- /controls -->
+
+  <!-- ================================================== PLOT AREA -->
+  <div class="plot-area">
+
+    <div class="viz-card">
+      <canvas id="beadCanvas"></canvas>
+      <div class="computing-overlay" id="computingOverlay">
+        <span class="computing-label">Computing…</span>
+      </div>
+      <div class="viz-legend">
+        <div class="viz-legend-item">
+          <div class="viz-legend-dot" style="background:#4488ff;"></div>
+          Object 1
+        </div>
+        <div class="viz-legend-item">
+          <div class="viz-legend-dot" style="background:#ff6644;"></div>
+          Object 2
+        </div>
+      </div>
+      <div class="viz-energy-scale">
+        <span>low</span>
+        <canvas id="energyScaleBar" width="60" height="6" style="border-radius:3px;"></canvas>
+        <span>high |E|</span>
+      </div>
+    </div>
+
+    <div id="energyPlot"></div>
+
+    <div class="info-panel">
+      <div class="info-item">
+        <div class="info-label">Atoms N₁, N₂</div>
+        <div class="info-value" id="inf-N">—</div>
+        <div class="info-sub" id="inf-delta">spacing — nm</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">D / R</div>
+        <div class="info-value" id="inf-DR">—</div>
+        <div class="info-sub">dimensionless sep.</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">E (bead sum)</div>
+        <div class="info-value" id="inf-Enum">—</div>
+        <div class="info-sub">k<sub>B</sub>T</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">E (Derjaguin)</div>
+        <div class="info-value" id="inf-Eda">—</div>
+        <div class="info-sub">k<sub>B</sub>T</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">DA error</div>
+        <div class="info-value" id="inf-err">—</div>
+        <div class="info-sub">vs. exact Hamaker</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">DA validity</div>
+        <div class="info-value" id="inf-valid">—</div>
+      </div>
+    </div>
+
+  </div><!-- /plot-area -->
+</div><!-- /main -->
+
+<!-- ================================================== THEORY -->
+<details class="theory-block">
+  <summary>Theory Reference</summary>
+  <div class="theory-body">
+
+    <h3>Derjaguin Approximation (Proximity Force Approximation)</h3>
+    <p>
+      For two curved surfaces at separation D ≪ R, the interaction <em>force</em> relates
+      to the flat–flat free energy per unit area G(D) via:
+    </p>
+    <p style="margin:8px 0 8px 20px;"><code>F(D) = 2π R<sub>eff</sub> · G(D)</code></p>
+    <p>
+      For non-retarded vdW, G(D) = −A/(12πD²), giving:
+    </p>
+    <table>
+      <tr><th>Geometry</th><th>R<sub>eff</sub></th><th>E<sub>DA</sub></th><th>Valid when</th></tr>
+      <tr><td>Sphere–Sphere (equal R)</td><td>R/2</td><td>−AR / (12D)</td><td>D ≪ R</td></tr>
+      <tr><td>Sphere–Flat</td><td>R</td><td>−AR / (6D)</td><td>D ≪ R</td></tr>
+    </table>
+
+    <h3>Exact Hamaker Integration</h3>
+    <p>Integrating pairwise −C₆/r⁶ over two body volumes yields closed-form results.
+    For two equal spheres (s = 2R + D):</p>
+    <p style="margin:8px 0 8px 20px;">
+      <code>E = −(A/6) [ 2R²/(D(D+4R))  +  2R²/s²  +  ln( D(D+4R)/s² ) ]</code>
+    </p>
+    <p>For a sphere of radius R separated by D from a flat surface:</p>
+    <p style="margin:8px 0 8px 20px;">
+      <code>E = −(A/6) [ R/D  +  R/(D+2R)  +  ln( D/(D+2R) ) ]</code>
+    </p>
+    <p>
+      The DA overestimates attraction at large D/R because it treats the distant parts
+      of curved surfaces as locally flat — an increasingly poor assumption as D/R → 1.
+    </p>
+
+    <h3>Bead Model</h3>
+    <p>
+      Each sphere is packed with point atoms on a 3D Cartesian grid (spacing Δ ≈ atom diameter).
+      Total vdW energy is the explicit pairwise double sum:
+    </p>
+    <p style="margin:8px 0 8px 20px;"><code>E<sub>num</sub> = Σ<sub>i∈obj1</sub> Σ<sub>j∈obj2</sub> −C₆/r<sub>ij</sub>⁶</code></p>
+    <p>
+      C₆ is calibrated so that E<sub>num</sub> matches the exact Hamaker result at a reference
+      separation D<sub>ref</sub> = R. The sum converges toward the exact result as N → ∞ (Δ → 0).
+      Reliability requires D ≳ Δ; below that, discretisation artefacts grow. Increasing N
+      shrinks Δ and pushes that boundary to smaller separations.
+    </p>
+    <p style="margin-top:8px;">
+      Bead brightness encodes proximity to the opposite object — atoms nearest the gap glow
+      hottest, showing where the interaction is concentrated.
+    </p>
+
+  </div>
+</details>
+
+<script>
+// ================================================================ constants
+const KBT_ZJ = 4.116; // kBT at 298 K in zJ (1 zJ = 1e-21 J)
+
+const PRESETS = {
+  sio2: { A: 6.5  },
+  ps:   { A: 1.3  },
+  tio2: { A: 6.0  },
+  au:   { A: 45.0 },
+};
+
+// Max atoms allowed per sphere for each geometry (sphere-flat needs 6× more for the slab)
+const N_MAX_SS = 2000;
+const N_MAX_SF =  500; // slab gets ~6× atoms → keep pairs manageable
+
+// ================================================================ state
+const S = {
+  geometry: 'ss',
+  R:   5,     // nm  — sphere radius
+  N:   200,   // target atoms per sphere
+  A:   6.5,   // zJ  — Hamaker constant
+  D:   0.5,   // nm  — canvas / info slider separation
+  showNum:   true,
+  showDA:    true,
+  showExact: true,
+  // --- computed cache ---
+  // Bead positions stored as flat Float32Arrays for cache efficiency:
+  //   b1x, b1y, b1z  (object 1)
+  //   b2x, b2y, b2z  (object 2)
+  b1x: null, b1y: null, b1z: null, N1: 0,
+  b2x: null, b2y: null, b2z: null, N2: 0,
+  delta: 0,   // nm bead spacing
+  C6:    0,   // zJ·nm⁶
+  D_arr:   null,
+  E_num:   null,
+  E_da:    null,
+  E_exact: null,
+  err_da:  null,
+  plotInit: false,
+};
+
+// ================================================================ bead generation
+// Returns flat Float32Arrays — much faster inner loops than array-of-arrays
+
+function generateSphereBeads(R, N_target) {
+  const vol     = (4 / 3) * Math.PI * R ** 3;
+  const spacing = Math.cbrt(vol / N_target);
+  const R2      = R * R;
+  const xs = [], ys = [], zs = [];
+  for (let x = -R; x <= R + 1e-9; x += spacing)
+    for (let y = -R; y <= R + 1e-9; y += spacing)
+      for (let z = -R; z <= R + 1e-9; z += spacing)
+        if (x * x + y * y + z * z <= R2) { xs.push(x); ys.push(y); zs.push(z); }
+  return {
+    x: new Float32Array(xs),
+    y: new Float32Array(ys),
+    z: new Float32Array(zs),
+    n: xs.length,
+    spacing,
+  };
+}
+
+function generateFlatBeads(R, spacing) {
+  // Disk: radius 2R, depth 2R below z = 0.  Half-spacing offset so no bead sits on z=0.
+  const xs = [], ys = [], zs = [];
+  const lat  = 2 * R;
+  const dep  = 2 * R;
+  const lat2 = lat * lat;
+  for (let x = -lat; x <= lat + 1e-9; x += spacing)
+    for (let y = -lat; y <= lat + 1e-9; y += spacing)
+      if (x * x + y * y <= lat2)
+        for (let z = -spacing * 0.5; z >= -(dep + spacing * 0.5 - 1e-9); z -= spacing)
+          { xs.push(x); ys.push(y); zs.push(z); }
+  return {
+    x: new Float32Array(xs),
+    y: new Float32Array(ys),
+    z: new Float32Array(zs),
+    n: xs.length,
+  };
+}
+
+// ================================================================ physics
+
+function energyExact(geometry, A, R, D) {
+  if (D <= 0) return -Infinity;
+  if (geometry === 'ss') {
+    const s2 = (2 * R + D) ** 2;
+    const t1 = 2 * R * R / (D * (D + 4 * R));
+    const t2 = 2 * R * R / s2;
+    const t3 = Math.log(D * (D + 4 * R) / s2);
+    return -(A / 6) * (t1 + t2 + t3);
+  } else {
+    return -(A / 6) * (R / D + R / (D + 2 * R) + Math.log(D / (D + 2 * R)));
+  }
+}
+
+function energyDA(geometry, A, R, D) {
+  if (D <= 0) return -Infinity;
+  return geometry === 'ss' ? -A * R / (12 * D) : -A * R / (6 * D);
+}
+
+function obj2Offset(geometry, R, D) {
+  return geometry === 'ss' ? [2 * R + D, 0, 0] : [0, 0, R + D];
+}
+
+// Raw pairwise Σ −1/rᵢⱼ⁶ using flat typed arrays — the hot inner loop
+function rawPairSum(bA, oA, bB, oB) {
+  const nA = bA.n, nB = bB.n;
+  const ax = bA.x, ay = bA.y, az = bA.z;
+  const bx = bB.x, by = bB.y, bz = bB.z;
+  const [ox1, oy1, oz1] = oA;
+  const [ox2, oy2, oz2] = oB;
+  const r2min = 0.09; // (0.3 nm)²
+  let S = 0;
+  for (let i = 0; i < nA; i++) {
+    const px = ax[i] + ox1, py = ay[i] + oy1, pz = az[i] + oz1;
+    for (let j = 0; j < nB; j++) {
+      const dx = px - bx[j] - ox2;
+      const dy = py - by[j] - oy2;
+      const dz = pz - bz[j] - oz2;
+      const r2 = dx * dx + dy * dy + dz * dz;
+      if (r2 < r2min) continue;
+      S -= 1.0 / (r2 * r2 * r2);
+    }
+  }
+  return S; // < 0
+}
+
+// ================================================================ precompute (slow path)
+
+function precompute() {
+  const { geometry, R, A } = S;
+  // Cap N per geometry to keep compute tractable
+  const N_cap = geometry === 'sf' ? N_MAX_SF : N_MAX_SS;
+  const N_eff = Math.min(S.N, N_cap);
+
+  // Update hint if capped
+  const hint = document.getElementById('hint-N');
+  if (S.N > N_cap)
+    hint.textContent = `capped at ${N_cap} for ${geometry === 'sf' ? 'Sphere–Flat' : 'Sphere–Sphere'}`;
+  else
+    hint.textContent = 'more atoms → denser packing, slower compute';
+
+  // 1. Generate bead sets
+  const sp1 = generateSphereBeads(R, N_eff);
+  const sp2 = geometry === 'ss'
+    ? generateSphereBeads(R, N_eff)
+    : generateFlatBeads(R, sp1.spacing);
+
+  S.b1x = sp1.x; S.b1y = sp1.y; S.b1z = sp1.z; S.N1 = sp1.n;
+  S.b2x = sp2.x; S.b2y = sp2.y; S.b2z = sp2.z; S.N2 = sp2.n;
+  S.delta = sp1.spacing;
+
+  const b1 = { x: S.b1x, y: S.b1y, z: S.b1z, n: S.N1 };
+  const b2 = { x: S.b2x, y: S.b2y, z: S.b2z, n: S.N2 };
+
+  // 2. Calibrate C6: match exact Hamaker at D_ref = R
+  const D_ref  = R;
+  const o2_ref = obj2Offset(geometry, R, D_ref);
+  const Sraw   = rawPairSum(b1, [0, 0, 0], b2, o2_ref);
+  const Eref   = energyExact(geometry, A, R, D_ref);
+  S.C6 = (Sraw !== 0) ? Eref / Sraw : 1e-30;
+
+  // 3. Log-spaced D array from just above bead contact to 5R
+  const D_min  = Math.max(0.15, S.delta * 0.55);
+  const D_max  = 5 * R;
+  const nPts   = 80;
+  const logMin = Math.log10(D_min);
+  const logMax = Math.log10(D_max);
+
+  const D_arr   = new Float64Array(nPts);
+  const E_num   = new Float64Array(nPts);
+  const E_da    = new Float64Array(nPts);
+  const E_exact = new Float64Array(nPts);
+  const err_da  = new Float64Array(nPts);
+
+  for (let i = 0; i < nPts; i++) {
+    const D    = Math.pow(10, logMin + (logMax - logMin) * i / (nPts - 1));
+    D_arr[i]   = D;
+    const o2   = obj2Offset(geometry, R, D);
+    E_num[i]   = rawPairSum(b1, [0, 0, 0], b2, o2) * S.C6 / KBT_ZJ;
+    E_da[i]    = energyDA(geometry, A, R, D)          / KBT_ZJ;
+    E_exact[i] = energyExact(geometry, A, R, D)       / KBT_ZJ;
+    const ref  = Math.abs(E_exact[i]);
+    err_da[i]  = ref > 1e-12 ? Math.abs(E_da[i] - E_exact[i]) / ref : 0;
+  }
+
+  S.D_arr = D_arr; S.E_num = E_num; S.E_da = E_da;
+  S.E_exact = E_exact; S.err_da = err_da;
+}
+
+// ================================================================ canvas
+
+// Object-tinted colormap, frac ∈ [0,1], obj = 1 (blue) or 2 (red/orange)
+function beadColor(frac, obj) {
+  const t = Math.max(0, Math.min(1, frac));
+  let r, g, b;
+  if (obj === 1) {
+    // dark navy → blue → cyan-white
+    if (t < 0.45) {
+      const f = t / 0.45;
+      r = Math.round(8   + f * 35);  g = Math.round(18  + f * 80); b = Math.round(70  + f * 150);
+    } else if (t < 0.78) {
+      const f = (t - 0.45) / 0.33;
+      r = Math.round(43  + f * 70);  g = Math.round(98  + f * 140); b = Math.round(220 + f * 30);
+    } else {
+      const f = (t - 0.78) / 0.22;
+      r = Math.round(113 + f * 142); g = Math.round(238 + f * 17);  b = Math.round(250 + f * 5);
+    }
+  } else {
+    // dark brown → orange → yellow-white
+    if (t < 0.45) {
+      const f = t / 0.45;
+      r = Math.round(55  + f * 140); g = Math.round(8   + f * 60);  b = Math.round(8   + f * 12);
+    } else if (t < 0.78) {
+      const f = (t - 0.45) / 0.33;
+      r = Math.round(195 + f * 60);  g = Math.round(68  + f * 130); b = Math.round(20  + f * 10);
+    } else {
+      const f = (t - 0.78) / 0.22;
+      r = 255; g = Math.round(198 + f * 57); b = Math.round(30 + f * 225);
+    }
+  }
+  return [Math.min(255, r), Math.min(255, g), Math.min(255, b)];
+}
+
+// O(N) distance-proxy: distance from each bead to the nearest surface of the other object.
+// For canvas coloring this is visually equivalent to the exact per-bead sum and scales to
+// large N without a per-frame O(N²) cost.
+function beadFracs(beads, offset, targetType, targetCx, targetCy, targetCz, targetR) {
+  const n = beads.n;
+  const bx = beads.x, by = beads.y, bz = beads.z;
+  const [ox, oy, oz] = offset;
+  const raw = new Float32Array(n);
+
+  for (let i = 0; i < n; i++) {
+    const wx = bx[i] + ox, wy = by[i] + oy, wz = bz[i] + oz;
+    let dist;
+    if (targetType === 'sphere') {
+      const dx = wx - targetCx, dy = wy - targetCy, dz = wz - targetCz;
+      dist = Math.max(0.08, Math.sqrt(dx * dx + dy * dy + dz * dz) - targetR);
+    } else {
+      // flat surface at z = 0; beads above it have wz > 0, flat beads have wz < 0
+      dist = Math.max(0.08, Math.abs(wz));
+    }
+    raw[i] = 1.0 / (dist * dist * dist); // 1/r³ proxy
+  }
+
+  // Soft-clamp at 95th percentile so outliers don't wash out the scale
+  const sorted = Array.from(raw).sort((a, b) => a - b);
+  const p95    = sorted[Math.floor(sorted.length * 0.95)] || 1;
+  for (let i = 0; i < n; i++) raw[i] = Math.min(1, raw[i] / p95);
+  return raw;
+}
+
+let _drawPending = false;
+function scheduleCanvas() {
+  if (!_drawPending) {
+    _drawPending = true;
+    requestAnimationFrame(() => { _drawPending = false; drawCanvas(); });
+  }
+}
+
+function drawCanvas() {
+  const canvas = document.getElementById('beadCanvas');
+  if (!canvas) return;
+  const dpr   = window.devicePixelRatio || 1;
+  const W_css = canvas.clientWidth  || 600;
+  const H_css = canvas.clientHeight || 280;
+  if (canvas.width  !== Math.round(W_css * dpr) ||
+      canvas.height !== Math.round(H_css * dpr)) {
+    canvas.width  = Math.round(W_css * dpr);
+    canvas.height = Math.round(H_css * dpr);
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = W_css, H = H_css;
+
+  ctx.fillStyle = '#080c18';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!S.b1x) return;
+
+  const { geometry, R, D } = S;
+  const o1 = [0, 0, 0];
+  const o2 = obj2Offset(geometry, R, D);
+
+  const b1 = { x: S.b1x, y: S.b1y, z: S.b1z, n: S.N1 };
+  const b2 = { x: S.b2x, y: S.b2y, z: S.b2z, n: S.N2 };
+
+  // O(N) proximity fracs for coloring
+  const frac1 = beadFracs(b1, o1,
+    geometry === 'ss' ? 'sphere' : 'flat',
+    o2[0], o2[1], o2[2], R);
+
+  const frac2 = beadFracs(b2, o2,
+    'sphere', 0, 0, 0, R);   // obj2 always compared to sphere at origin
+
+  // Build world-space bead list
+  const total = S.N1 + S.N2;
+  const wx = new Float32Array(total), wy = new Float32Array(total),
+        wz = new Float32Array(total), fr = new Float32Array(total);
+  const ob = new Uint8Array(total);
+
+  for (let i = 0; i < S.N1; i++) {
+    wx[i] = S.b1x[i] + o1[0]; wy[i] = S.b1y[i] + o1[1]; wz[i] = S.b1z[i] + o1[2];
+    fr[i] = frac1[i]; ob[i] = 1;
+  }
+  for (let i = 0; i < S.N2; i++) {
+    const k = S.N1 + i;
+    wx[k] = S.b2x[i] + o2[0]; wy[k] = S.b2y[i] + o2[1]; wz[k] = S.b2z[i] + o2[2];
+    fr[k] = frac2[i]; ob[k] = 2;
+  }
+
+  // Sort back-to-front by y (painter's algorithm): argsort wy
+  const idx = Array.from({ length: total }, (_, i) => i);
+  idx.sort((a, b) => wy[a] - wy[b]);
+
+  // Bounding box in xz for scale
+  let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
+  for (let i = 0; i < total; i++) {
+    if (wx[i] < xMin) xMin = wx[i]; if (wx[i] > xMax) xMax = wx[i];
+    if (wz[i] < zMin) zMin = wz[i]; if (wz[i] > zMax) zMax = wz[i];
+  }
+  const mxPad = Math.max((xMax - xMin) * 0.09, 0.5);
+  const mzPad = Math.max((zMax - zMin) * 0.12, 0.5);
+  xMin -= mxPad; xMax += mxPad; zMin -= mzPad; zMax += mzPad;
+
+  const scale = Math.min(W / (xMax - xMin), H / (zMax - zMin));
+  const cx0   = W / 2 - ((xMin + xMax) / 2) * scale;
+  const cz0   = H / 2 + ((zMin + zMax) / 2) * scale;
+  const toX   = x => cx0 + x * scale;
+  const toZ   = z => cz0 - z * scale;
+
+  const beadR  = Math.max(1.2, S.delta * scale * 0.50);
+  const yMin   = wy[idx[0]];
+  const yRange = (wy[idx[total - 1]] - yMin) || 1;
+
+  for (let k = 0; k < total; k++) {
+    const i  = idx[k];
+    const cx = toX(wx[i]);
+    const cy = toZ(wz[i]);
+    if (cx < -beadR || cx > W + beadR || cy < -beadR || cy > H + beadR) continue;
+    const alpha   = 0.28 + 0.72 * (wy[i] - yMin) / yRange;
+    const [r, g, b] = beadColor(fr[i], ob[i]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, beadR, 0, 6.2832);
+    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+    ctx.fill();
+  }
+
+  // Dashed outlines
+  ctx.save();
+  ctx.setLineDash([3, 4]);
+  ctx.lineWidth   = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  if (geometry === 'ss') {
+    ctx.beginPath(); ctx.arc(toX(o1[0]), toZ(o1[2]), R * scale, 0, 6.2832); ctx.stroke();
+    ctx.beginPath(); ctx.arc(toX(o2[0]), toZ(o2[2]), R * scale, 0, 6.2832); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.arc(toX(o2[0]), toZ(o2[2]), R * scale, 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(toX(xMin + mxPad * 0.3), toZ(0));
+    ctx.lineTo(toX(xMax - mxPad * 0.3), toZ(0));
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  drawGapArrow(ctx, toX, toZ, geometry, R, D, scale);
+}
+
+function drawGapArrow(ctx, toX, toZ, geometry, R, D, scale) {
+  const gap_px = D * scale;
+  if (gap_px < 8) return;
+  ctx.save();
+  ctx.lineWidth   = 1;
+  ctx.strokeStyle = 'rgba(255,210,60,0.85)';
+  ctx.fillStyle   = 'rgba(255,210,60,0.90)';
+  ctx.font        = 'bold 11px -apple-system,BlinkMacSystemFont,sans-serif';
+  if (geometry === 'ss') {
+    const x1 = toX(-D / 2), x2 = toX(D / 2), y0 = toZ(0);
+    ctx.beginPath(); ctx.moveTo(x1, y0); ctx.lineTo(x2, y0); ctx.stroke();
+    arrowTip(ctx, x1, y0, -1, 0); arrowTip(ctx, x2, y0, 1, 0);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(`D = ${D.toFixed(2)} nm`, (x1 + x2) / 2, y0 - 4);
+  } else {
+    const x0 = toX(R * 0.6), z0 = toZ(0), zR = toZ(D);
+    ctx.beginPath(); ctx.moveTo(x0, z0); ctx.lineTo(x0, zR); ctx.stroke();
+    arrowTip(ctx, x0, z0, 0, 1); arrowTip(ctx, x0, zR, 0, -1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(`D = ${D.toFixed(2)} nm`, x0 + 6, (z0 + zR) / 2);
+  }
+  ctx.restore();
+}
+
+function arrowTip(ctx, x, y, dx, dy) {
+  const s = 4.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - s * dy - s * dx * 0.6, y + s * dx - s * dy * 0.6);
+  ctx.lineTo(x + s * dy - s * dx * 0.6, y - s * dx - s * dy * 0.6);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawScaleBar() {
+  const bar = document.getElementById('energyScaleBar');
+  if (!bar) return;
+  const ctx  = bar.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 60, 0);
+  for (let i = 0; i <= 10; i++) {
+    const [r, g, b] = beadColor(i / 10, 1);
+    grad.addColorStop(i / 10, `rgb(${r},${g},${b})`);
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 60, 6);
+}
+
+// ================================================================ Plotly chart
+
+function buildTraces() {
+  const D = Array.from(S.D_arr);
+  const traces = [];
+  if (S.showExact && S.E_exact)
+    traces.push({ x: D, y: Array.from(S.E_exact), name: 'Exact Hamaker', mode: 'lines',
+      line: { color: '#22aa66', width: 2, dash: 'dot' } });
+  if (S.showNum && S.E_num)
+    traces.push({ x: D, y: Array.from(S.E_num), name: 'Numerical (bead sum)', mode: 'lines',
+      line: { color: '#2575e8', width: 2.5 } });
+  if (S.showDA && S.E_da)
+    traces.push({ x: D, y: Array.from(S.E_da), name: 'Derjaguin Approx.', mode: 'lines',
+      line: { color: '#e05c3a', width: 2, dash: 'dash' } });
+  return traces;
+}
+
+function buildShapes() {
+  const shapes = [
+    { type: 'line', xref: 'x', yref: 'paper', x0: S.R,     x1: S.R,
+      y0: 0, y1: 1, line: { color: 'rgba(220,140,20,0.55)', width: 1.5, dash: 'dot' } },
+    { type: 'line', xref: 'x', yref: 'paper', x0: S.D,     x1: S.D,
+      y0: 0, y1: 1, line: { color: 'rgba(100,180,255,0.55)', width: 1.5 } },
+  ];
+  if (S.delta > 0)
+    shapes.push({ type: 'line', xref: 'x', yref: 'paper', x0: S.delta, x1: S.delta,
+      y0: 0, y1: 1, line: { color: 'rgba(140,70,210,0.45)', width: 1.5, dash: 'dot' } });
+  return shapes;
+}
+
+function buildAnnotations() {
+  const anns = [
+    { x: S.R, xref: 'x', yref: 'paper', y: 0.97, text: 'D = R',
+      showarrow: false, xanchor: 'left', font: { size: 10, color: 'rgba(220,140,20,0.9)' } },
+  ];
+  if (S.delta > 0)
+    anns.push({ x: S.delta, xref: 'x', yref: 'paper', y: 0.87, text: 'D = Δ',
+      showarrow: false, xanchor: 'left', font: { size: 10, color: 'rgba(140,70,210,0.8)' } });
+  return anns;
+}
+
+function buildLayout() {
+  const allE = [
+    ...(S.E_num   ? Array.from(S.E_num)   : []),
+    ...(S.E_da    ? Array.from(S.E_da)    : []),
+    ...(S.E_exact ? Array.from(S.E_exact) : []),
+  ].filter(v => isFinite(v) && v < 0);
+  const yMin  = allE.length ? Math.min(...allE) * 1.18 : -10;
+  const Dmin  = S.D_arr ? S.D_arr[0] : 0.1;
+  const Dmax  = S.D_arr ? S.D_arr[S.D_arr.length - 1] : 50;
+  return {
+    margin: { t: 24, b: 50, l: 65, r: 20 },
+    xaxis: {
+      title: 'Surface separation  D  (nm)', type: 'log',
+      range: [Math.log10(Dmin), Math.log10(Dmax)],
+      gridcolor: '#e0e8f0', showgrid: true, zeroline: false,
+    },
+    yaxis: {
+      title: 'Interaction energy  (k<sub>B</sub>T)', range: [yMin, 0.4],
+      gridcolor: '#e0e8f0', showgrid: true,
+      zeroline: true, zerolinecolor: '#c8d4e0', zerolinewidth: 1.5,
+    },
+    showlegend: true,
+    legend: { x: 0.98, xanchor: 'right', y: 0.02, yanchor: 'bottom',
+      bgcolor: 'rgba(255,255,255,0.88)', bordercolor: '#e0e8f0', borderwidth: 1,
+      font: { size: 11 } },
+    plot_bgcolor:  '#f8fafc',
+    paper_bgcolor: '#fff',
+    shapes:      buildShapes(),
+    annotations: buildAnnotations(),
+  };
+}
+
+function updatePlot() {
+  const traces = buildTraces();
+  const layout = buildLayout();
+  if (!S.plotInit) {
+    Plotly.newPlot('energyPlot', traces, layout, { responsive: true, displayModeBar: false });
+    S.plotInit = true;
+  } else {
+    Plotly.react('energyPlot', traces, layout);
+  }
+}
+
+// ================================================================ info panel
+
+function interpAt(arr, D_target) {
+  if (!arr || !S.D_arr) return NaN;
+  let idx = 0;
+  for (let i = 1; i < S.D_arr.length; i++)
+    if (Math.abs(S.D_arr[i] - D_target) < Math.abs(S.D_arr[idx] - D_target)) idx = i;
+  return arr[idx];
+}
+
+function updateInfoPanel() {
+  const { N1, N2, delta, R, D } = S;
+  const DR = D / R;
+  document.getElementById('inf-N').textContent     = `${N1}, ${N2}`;
+  document.getElementById('inf-delta').textContent = `spacing ${delta.toFixed(2)} nm`;
+  document.getElementById('inf-DR').textContent    = DR.toFixed(3);
+  const eNum  = interpAt(S.E_num,  D);
+  const eDA   = interpAt(S.E_da,   D);
+  const errDA = interpAt(S.err_da, D);
+  document.getElementById('inf-Enum').textContent = isFinite(eNum)  ? eNum.toFixed(2)  : '—';
+  document.getElementById('inf-Eda').textContent  = isFinite(eDA)   ? eDA.toFixed(2)   : '—';
+  document.getElementById('inf-err').textContent  = isFinite(errDA) ? (errDA * 100).toFixed(1) + '%' : '—';
+  const v = document.getElementById('inf-valid');
+  if      (DR < 0.05) v.innerHTML = '<span class="badge badge-valid">Valid</span>';
+  else if (DR < 0.30) v.innerHTML = '<span class="badge badge-marginal">Marginal</span>';
+  else                v.innerHTML = '<span class="badge badge-invalid">Invalid</span>';
+}
+
+// ================================================================ fast path — D slider only
+
+function updateD(val) {
+  S.D = val;
+  document.getElementById('val-D').textContent = val.toFixed(2) + ' nm';
+  if (S.plotInit && S.D_arr)
+    Plotly.relayout('energyPlot', { shapes: buildShapes(), annotations: buildAnnotations() });
+  scheduleCanvas();
+  updateInfoPanel();
+}
+
+// ================================================================ slow path — full recompute
+
+function fullUpdate() {
+  // Show computing overlay
+  document.getElementById('computingOverlay').classList.add('visible');
+
+  // Defer compute one frame so the overlay renders first
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      precompute();
+
+      // Clamp D slider range to new R
+      const dSlider = document.getElementById('sl-D');
+      const newMax  = (4 * S.R).toFixed(2);
+      dSlider.max   = newMax;
+      if (S.D > 4 * S.R) {
+        S.D = parseFloat((S.R * 0.1).toFixed(2));
+        dSlider.value = S.D;
+        document.getElementById('val-D').textContent = S.D.toFixed(2) + ' nm';
+      }
+
+      updatePlot();
+      scheduleCanvas();
+      updateInfoPanel();
+      document.getElementById('computingOverlay').classList.remove('visible');
+    }, 0);
+  });
+}
+
+// ================================================================ event handlers
+
+function setGeometry(g) {
+  S.geometry = g;
+  document.getElementById('btn-ss').classList.toggle('active', g === 'ss');
+  document.getElementById('btn-sf').classList.toggle('active', g === 'sf');
+  fullUpdate();
+}
+
+function updateParam(key, val) {
+  if (key === 'R') { S.R = val; document.getElementById('val-R').textContent = val + ' nm'; }
+  else             { S.N = val; document.getElementById('val-N').textContent = val; }
+  fullUpdate();
+}
+
+function updateParamA(logVal) {
+  S.A = parseFloat(Math.pow(10, logVal).toFixed(2));
+  document.getElementById('val-A').textContent = S.A.toFixed(1) + ' zJ';
+  document.querySelectorAll('#material-presets button').forEach(b => b.classList.remove('active'));
+  fullUpdate();
+}
+
+function applyPreset(key) {
+  S.A = PRESETS[key].A;
+  document.getElementById('sl-A').value = Math.log10(S.A);
+  document.getElementById('val-A').textContent = S.A.toFixed(1) + ' zJ';
+  document.querySelectorAll('#material-presets button')
+    .forEach(b => b.classList.toggle('active', b.dataset.key === key));
+  fullUpdate();
+}
+
+function toggleCurve() {
+  S.showNum   = document.getElementById('ck-num').checked;
+  S.showDA    = document.getElementById('ck-da').checked;
+  S.showExact = document.getElementById('ck-exact').checked;
+  if (S.plotInit) updatePlot();
+}
+
+// ================================================================ responsive canvas
+new ResizeObserver(() => scheduleCanvas())
+  .observe(document.getElementById('beadCanvas').parentElement);
+
+// ================================================================ init
+window.addEventListener('load', () => {
+  document.getElementById('val-R').textContent = S.R + ' nm';
+  document.getElementById('val-N').textContent = S.N;
+  document.getElementById('val-A').textContent = S.A.toFixed(1) + ' zJ';
+  document.getElementById('val-D').textContent = S.D.toFixed(2) + ' nm';
+  document.getElementById('sl-D').value = S.D;
+  drawScaleBar();
+  fullUpdate();
+});
+</script>
+</body>
+</html>

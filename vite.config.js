@@ -7,7 +7,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        dlvo: resolve(__dirname, 'src/applets/dlvo/index.html'),
+        dlvo:      resolve(__dirname, 'src/applets/dlvo/index.html'),
+        derjaguin: resolve(__dirname, 'src/applets/derjaguin/index.html'),
       },
     },
   },
