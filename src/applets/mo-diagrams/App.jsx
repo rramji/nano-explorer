@@ -351,6 +351,13 @@ function DiagramBuilder({ mol, state, onState, onStatus }) {
   };
 
   // dragging
+  // onState (the shell's setState) is a fresh function every render. Reading it
+  // through a ref keeps onMove/onUp stable-identity: otherwise the first move
+  // triggers a re-render, the handlers change, and the cleanup effect below
+  // tears down the pointer listeners mid-drag, freezing the level after one step.
+  const onStateRef = useRef(onState);
+  onStateRef.current = onState;
+
   const onMove = useCallback((e) => {
     const d = dragRef.current;
     if (!d) return;
@@ -359,8 +366,8 @@ function DiagramBuilder({ mol, state, onState, onStatus }) {
     let y = e.clientY - rect.top - d.dy;
     x = Math.max(0, Math.min(x, canvasRef.current.clientWidth - d.w));
     y = Math.max(0, Math.min(y, canvasRef.current.clientHeight - 80));
-    onState((s) => ({ ...s, nodes: s.nodes.map((n) => (n.id === d.id ? { ...n, x, y } : n)) }));
-  }, [onState]);
+    onStateRef.current((s) => ({ ...s, nodes: s.nodes.map((n) => (n.id === d.id ? { ...n, x, y } : n)) }));
+  }, []);
 
   const onUp = useCallback(() => {
     dragRef.current = null;
