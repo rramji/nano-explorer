@@ -29,6 +29,10 @@
  *     explainCorrect, explainWrong }
  *   { id, type: "free", prompt, guidance }   // recorded, not auto-graded
  *
+ *   The free-response "reasoning" question is passed into standardQuestions as
+ *   a per-molecule `reasoning: { prompt, guidance }` because the bonding story
+ *   is species-specific (electron added vs. removed vs. neutral isoelectronic).
+ *
  * -----------------------------------------------------------------------------
  * CHEMISTRY NOTES — please read before deploying, some of these are choices:
  *
@@ -52,7 +56,10 @@
  */
 
 // Build the standard trio of follow-ups for a homonuclear-style diatomic.
-function standardQuestions({ unpaired, bondOrder }) {
+// `reasoning` is the per-molecule free-response { prompt, guidance }: the
+// bonding story differs by species (electron added vs. removed vs. neutral),
+// so it must be written per molecule rather than sharing one generic prompt.
+function standardQuestions({ unpaired, bondOrder, reasoning }) {
   const magnetism = unpaired === 0 ? "Diamagnetic" : "Paramagnetic";
   return [
     {
@@ -92,10 +99,8 @@ function standardQuestions({ unpaired, bondOrder }) {
     {
       id: "reasoning",
       type: "free",
-      prompt:
-        "In a sentence, explain how the electron count changed the bond order relative to neutral C₂ (or the parent neutral molecule).",
-      guidance:
-        "Look for whether the added or removed electron entered a bonding or an antibonding level, and how that shifts (bonding − antibonding) / 2.",
+      prompt: reasoning.prompt,
+      guidance: reasoning.guidance,
     },
   ];
 }
@@ -119,7 +124,16 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 0 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
-    questions: standardQuestions({ unpaired: 0, bondOrder: 3 }),
+    questions: standardQuestions({
+      unpaired: 0,
+      bondOrder: 3,
+      reasoning: {
+        prompt:
+          "In a sentence, explain how adding two electrons to neutral C₂ raises the bond order.",
+        guidance:
+          "Neutral C₂ has bond order 2 (its π2p bonding set is full). The two extra electrons fill the bonding σ2p level, so (bonding − antibonding) / 2 climbs from 2 to 3.",
+      },
+    }),
   },
 
   "C2^+": {
@@ -140,7 +154,16 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 0 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
-    questions: standardQuestions({ unpaired: 1, bondOrder: 1.5 }),
+    questions: standardQuestions({
+      unpaired: 1,
+      bondOrder: 1.5,
+      reasoning: {
+        prompt:
+          "In a sentence, explain how removing one electron from neutral C₂ lowers the bond order.",
+        guidance:
+          "Neutral C₂ has bond order 2. The electron is pulled from a filled bonding π2p level, so (bonding − antibonding) / 2 drops from 2 to 1.5.",
+      },
+    }),
   },
 
   BN: {
@@ -161,7 +184,16 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 0 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
-    questions: standardQuestions({ unpaired: 0, bondOrder: 2 }),
+    questions: standardQuestions({
+      unpaired: 0,
+      bondOrder: 2,
+      reasoning: {
+        prompt:
+          "In a sentence, explain why BN — isoelectronic with C₂ — has a bond order of 2.",
+        guidance:
+          "BN's 8 valence electrons fill the same levels as neutral C₂: σ2s² σ*2s² π2p⁴. That leaves four more bonding than antibonding electrons, so (bonding − antibonding) / 2 = 2.",
+      },
+    }),
   },
 
   "NO^-": {
@@ -182,7 +214,16 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 2 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
-    questions: standardQuestions({ unpaired: 2, bondOrder: 2 }),
+    questions: standardQuestions({
+      unpaired: 2,
+      bondOrder: 2,
+      reasoning: {
+        prompt:
+          "In a sentence, explain how adding one electron to neutral NO lowers the bond order.",
+        guidance:
+          "Neutral NO has bond order 2.5, with a single electron already in an antibonding π*2p level. The added electron joins that π*2p set, so (bonding − antibonding) / 2 falls from 2.5 to 2.",
+      },
+    }),
   },
 
   HF: {
