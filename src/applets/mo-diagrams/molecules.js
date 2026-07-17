@@ -124,6 +124,14 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 0 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
+    atoms: {
+      mode: "total",
+      total: 10,
+      list: [
+        { element: "C", orbitals: [{ type: "single", label: "2s" }, { type: "trip", label: "2p" }] },
+        { element: "C", orbitals: [{ type: "single", label: "2s" }, { type: "trip", label: "2p" }] },
+      ],
+    },
     questions: standardQuestions({
       unpaired: 0,
       bondOrder: 3,
@@ -154,6 +162,14 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 0 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
+    atoms: {
+      mode: "total",
+      total: 7,
+      list: [
+        { element: "C", orbitals: [{ type: "single", label: "2s" }, { type: "trip", label: "2p" }] },
+        { element: "C", orbitals: [{ type: "single", label: "2s" }, { type: "trip", label: "2p" }] },
+      ],
+    },
     questions: standardQuestions({
       unpaired: 1,
       bondOrder: 1.5,
@@ -184,6 +200,13 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 0 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
+    atoms: {
+      mode: "config",
+      list: [
+        { element: "B", orbitals: [{ type: "single", label: "2s", occ: 2 }, { type: "trip", label: "2p", occ: 1 }] },
+        { element: "N", orbitals: [{ type: "single", label: "2s", occ: 2 }, { type: "trip", label: "2p", occ: 3 }] },
+      ],
+    },
     questions: standardQuestions({
       unpaired: 0,
       bondOrder: 2,
@@ -214,6 +237,14 @@ export const MOLECULES = {
       { label: "π*2p", alt: ["pi*2p"], degenerate: true, occ: 2 },
       { label: "σ*2p", alt: ["sigma*2p"], occ: 0 },
     ],
+    atoms: {
+      mode: "total",
+      total: 12,
+      list: [
+        { element: "N", orbitals: [{ type: "single", label: "2s" }, { type: "trip", label: "2p" }] },
+        { element: "O", orbitals: [{ type: "single", label: "2s" }, { type: "trip", label: "2p" }] },
+      ],
+    },
     questions: standardQuestions({
       unpaired: 2,
       bondOrder: 2,
@@ -242,6 +273,13 @@ export const MOLECULES = {
       { label: "πnb", alt: ["pi_nb", "π(nb)", "lonepair", "πlp"], degenerate: true, occ: 4, nonbonding: true },
       { label: "σ*", alt: ["sigma*"], occ: 0 },
     ],
+    atoms: {
+      mode: "config",
+      list: [
+        { element: "H", orbitals: [{ type: "single", label: "1s", occ: 1 }] },
+        { element: "F", orbitals: [{ type: "single", label: "2s", occ: 2 }, { type: "trip", label: "2p", occ: 5 }] },
+      ],
+    },
     questions: [
       {
         id: "unpaired",
