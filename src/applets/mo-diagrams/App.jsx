@@ -621,7 +621,7 @@ export default function MOActivity({ order = MOLECULE_ORDER }) {
   };
 
   return (
-    <div style={{ color: theme.text, fontFamily: "system-ui, sans-serif", maxWidth: 760 }}>
+    <div style={{ color: theme.text, fontFamily: "system-ui, sans-serif", maxWidth: 760, margin: "0 auto", padding: "24px 20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
         <span style={{ fontSize: 20, fontWeight: 600 }}>Molecular orbital diagrams</span>
         <span style={{ fontSize: 13, color: theme.textMuted }}>{solvedCount} of {ids.length} solved</span>
