@@ -117,6 +117,33 @@
     }
     #beadCanvas { display: block; width: 100%; height: 280px; }
 
+    /* ---- Viz tabs ---- */
+    .viz-tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }
+    .viz-tab {
+      flex: 1;
+      padding: 7px 0;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      color: rgba(255,255,255,0.40);
+      font-size: 0.76rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .viz-tab.active      { color: rgba(255,255,255,0.90); border-bottom-color: #4488ff; }
+    .viz-tab:hover:not(.active) { color: rgba(255,255,255,0.65); }
+    .viz-panel           { display: none; }
+    .viz-panel.active    { display: block; }
+    #vpanel-atoms        { position: relative; }
+    #vpanel-rings        { height: 280px; overflow: hidden; }
+    #ringSVG             { display: block; width: 100%; height: 100%; }
+
     /* computing overlay */
     .computing-overlay {
       position: absolute;
@@ -131,12 +158,32 @@
       transition: opacity 0.15s;
     }
     .computing-overlay.visible { opacity: 1; }
+    .computing-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 9px;
+    }
     .computing-label {
       color: rgba(160,200,255,0.9);
       font-size: 0.82rem;
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+    }
+    .progress-track {
+      width: 160px;
+      height: 3px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: rgba(100,180,255,0.85);
+      border-radius: 2px;
+      transition: width 0.18s ease;
     }
 
     .viz-legend {
@@ -277,7 +324,7 @@
         <span class="name">Sphere radius <i>R</i></span>
         <span class="value" id="val-R">5 nm</span>
       </label>
-      <input type="range" id="sl-R" min="1" max="10" step="0.5" value="5"
+      <input type="range" id="sl-R" min="1" max="50" step="0.5" value="5"
              oninput="updateParam('R', +this.value)">
     </div>
 
@@ -286,7 +333,7 @@
         <span class="name">Atoms per sphere <i>N</i></span>
         <span class="value" id="val-N">200</span>
       </label>
-      <input type="range" id="sl-N" min="50" max="2000" step="50" value="200"
+      <input type="range" id="sl-N" min="50" max="5000" step="100" value="200"
              oninput="updateParam('N', +this.value)">
       <div class="hint" id="hint-N">more atoms → denser packing, slower compute</div>
     </div>
@@ -334,8 +381,8 @@
     </label>
     <label class="check-row">
       <input type="checkbox" id="ck-exact" checked onchange="toggleCurve()">
-      <span class="check-swatch" style="background:none; border-top:2px dotted #22aa66; height:0; margin-top:1px;"></span>
-      Exact Hamaker
+      <span class="check-swatch" style="background:none; border-top:1.5px dotted #558866; height:0; margin-top:1px; opacity:0.7;"></span>
+      Hamaker continuum
     </label>
 
   </div><!-- /controls -->
@@ -344,24 +391,79 @@
   <div class="plot-area">
 
     <div class="viz-card">
-      <canvas id="beadCanvas"></canvas>
+      <div class="viz-tabs">
+        <button class="viz-tab active" id="vtab-atoms" onclick="showVizTab('atoms')">Atoms</button>
+        <button class="viz-tab"        id="vtab-rings" onclick="showVizTab('rings')">Ring decomp.</button>
+      </div>
+
+      <!-- Atoms panel (bead canvas) -->
+      <div id="vpanel-atoms" class="viz-panel active">
+        <canvas id="beadCanvas"></canvas>
+        <div class="viz-legend">
+          <div class="viz-legend-item">
+            <div class="viz-legend-dot" style="background:#4488ff;"></div>
+            Object 1
+          </div>
+          <div class="viz-legend-item">
+            <div class="viz-legend-dot" style="background:#ff6644;"></div>
+            Object 2
+          </div>
+        </div>
+        <div class="viz-energy-scale">
+          <span>low</span>
+          <canvas id="energyScaleBar" width="60" height="6" style="border-radius:3px;"></canvas>
+          <span>high |E|</span>
+        </div>
+      </div>
+
+      <!-- Ring decomposition panel -->
+      <div id="vpanel-rings" class="viz-panel">
+        <svg id="ringSVG" viewBox="0 0 600 280" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="rs-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="#FF8866" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- Flat surface -->
+          <rect x="40" y="238" width="520" height="30" rx="2" fill="#555" opacity=".18"/>
+          <rect x="40" y="238" width="520" height="2"  rx="1" fill="#aaa" opacity=".45"/>
+          <text x="36" y="239" text-anchor="end" dominant-baseline="hanging" font-size="11" fill="rgba(160,160,160,0.6)">flat</text>
+          <!-- Sphere (dynamic) -->
+          <circle id="rs-sphere" cx="300" cy="130" r="90" fill="#1a2840" stroke="#4488ff" stroke-width="1.5"/>
+          <!-- R dashed line -->
+          <line   id="rs-Rline" x1="300" y1="130" x2="390" y2="130" stroke="#4488ff" stroke-width="1" stroke-dasharray="4 3"/>
+          <circle id="rs-cdot"  cx="300" cy="130" r="3" fill="#4488ff"/>
+          <text   id="rs-Rlbl"  x="348" y="124" text-anchor="middle" font-size="11" font-weight="600" fill="rgba(100,160,255,0.9)">R = 5.0 nm</text>
+          <!-- D arrow -->
+          <line id="rs-Dline" x1="390" y1="221" x2="390" y2="237" stroke="#FF8866" stroke-width="1.5"
+                marker-end="url(#rs-arr)" marker-start="url(#rs-arr)"/>
+          <text id="rs-Dlbl" x="397" y="230" font-size="11" font-weight="600" fill="rgba(255,150,100,0.95)" dominant-baseline="central">D = 0.50 nm</text>
+          <!-- Rings (dynamic) -->
+          <ellipse id="rs-ring0" cx="300" cy="234" rx="18"  ry="5"  fill="#4488ff" opacity=".55" style="animation:ring-pulse 2s 0.0s infinite"/>
+          <ellipse id="rs-ring1" cx="300" cy="232" rx="36"  ry="8"  fill="none" stroke="#4488ff" stroke-width="5" opacity=".35" style="animation:ring-pulse 2s 0.3s infinite"/>
+          <ellipse id="rs-ring2" cx="300" cy="229" rx="57"  ry="10" fill="none" stroke="#4488ff" stroke-width="4" opacity=".25" style="animation:ring-pulse 2s 0.6s infinite"/>
+          <ellipse id="rs-ring3" cx="300" cy="225" rx="78"  ry="12" fill="none" stroke="#4488ff" stroke-width="3" opacity=".18" style="animation:ring-pulse 2s 0.9s infinite"/>
+          <ellipse id="rs-ring4" cx="300" cy="220" rx="100" ry="15" fill="none" stroke="#4488ff" stroke-width="2.5" opacity=".12" style="animation:ring-pulse 2s 1.2s infinite"/>
+          <!-- h(r) annotation -->
+          <line id="rs-hline" x1="406" y1="220" x2="406" y2="238" stroke="#FF8866" stroke-width="1" stroke-dasharray="2 2"/>
+          <text id="rs-hlbl"  x="410" y="230" font-size="10" fill="rgba(255,150,100,0.7)" dominant-baseline="central">h(r)</text>
+          <!-- Formula at bottom -->
+          <text x="300" y="266" text-anchor="middle" font-size="10" fill="rgba(180,200,230,0.50)">h(r) ≈ D + r²/2R  ·  dE = W(h)·2πr dr  →  F(D) = 2πR·W(D)  [valid when D ≪ R]</text>
+          <!-- Validity box -->
+          <rect id="rs-valid-box" x="8"   y="8"  width="198" height="38" rx="5" fill="#0d1a0d" stroke="#22aa44" stroke-width="0.8"/>
+          <text id="rs-valid-lbl" x="107" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="#22cc55" dominant-baseline="hanging">DA valid (D/R ≪ 1)</text>
+          <text id="rs-DR-txt"    x="107" y="34" text-anchor="middle" font-size="11" fill="#22cc55"  dominant-baseline="hanging">D/R = 0.100</text>
+        </svg>
+      </div>
+
+      <!-- Computing overlay (covers both panels) -->
       <div class="computing-overlay" id="computingOverlay">
-        <span class="computing-label">Computing…</span>
-      </div>
-      <div class="viz-legend">
-        <div class="viz-legend-item">
-          <div class="viz-legend-dot" style="background:#4488ff;"></div>
-          Object 1
+        <div class="computing-content">
+          <span class="computing-label" id="computingLabel">Computing…</span>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
         </div>
-        <div class="viz-legend-item">
-          <div class="viz-legend-dot" style="background:#ff6644;"></div>
-          Object 2
-        </div>
-      </div>
-      <div class="viz-energy-scale">
-        <span>low</span>
-        <canvas id="energyScaleBar" width="60" height="6" style="border-radius:3px;"></canvas>
-        <span>high |E|</span>
       </div>
     </div>
 
@@ -391,7 +493,7 @@
       <div class="info-item">
         <div class="info-label">DA error</div>
         <div class="info-value" id="inf-err">—</div>
-        <div class="info-sub">vs. exact Hamaker</div>
+        <div class="info-sub">vs. Hamaker continuum</div>
       </div>
       <div class="info-item">
         <div class="info-label">DA validity</div>
@@ -422,32 +524,34 @@
       <tr><td>Sphere–Flat</td><td>R</td><td>−AR / (6D)</td><td>D ≪ R</td></tr>
     </table>
 
-    <h3>Exact Hamaker Integration</h3>
-    <p>Integrating pairwise −C₆/r⁶ over two body volumes yields closed-form results.
+    <h3>Hamaker Continuum (reference)</h3>
+    <p>Treating matter as continuous with uniform number density ρ and integrating −C₆/r⁶
+    analytically gives closed-form results (the Hamaker 1937 approach, A = π²ρ²C₆).
     For two equal spheres (s = 2R + D):</p>
     <p style="margin:8px 0 8px 20px;">
       <code>E = −(A/6) [ 2R²/(D(D+4R))  +  2R²/s²  +  ln( D(D+4R)/s² ) ]</code>
     </p>
-    <p>For a sphere of radius R separated by D from a flat surface:</p>
+    <p>For sphere–flat:</p>
     <p style="margin:8px 0 8px 20px;">
       <code>E = −(A/6) [ R/D  +  R/(D+2R)  +  ln( D/(D+2R) ) ]</code>
     </p>
     <p>
-      The DA overestimates attraction at large D/R because it treats the distant parts
-      of curved surfaces as locally flat — an increasingly poor assumption as D/R → 1.
+      This is the reference line (dotted). It breaks down at D ≲ Δ (atom spacing) where the
+      discrete surface structure matters — a regime the DA is already useless in.
     </p>
 
-    <h3>Bead Model</h3>
+    <h3>Bead Model (pairwise atomic sum)</h3>
     <p>
       Each sphere is packed with point atoms on a 3D Cartesian grid (spacing Δ ≈ atom diameter).
-      Total vdW energy is the explicit pairwise double sum:
+      The total vdW attraction is the explicit pairwise double sum over all cross-object pairs:
     </p>
     <p style="margin:8px 0 8px 20px;"><code>E<sub>num</sub> = Σ<sub>i∈obj1</sub> Σ<sub>j∈obj2</sub> −C₆/r<sub>ij</sub>⁶</code></p>
     <p>
-      C₆ is calibrated so that E<sub>num</sub> matches the exact Hamaker result at a reference
-      separation D<sub>ref</sub> = R. The sum converges toward the exact result as N → ∞ (Δ → 0).
-      Reliability requires D ≳ Δ; below that, discretisation artefacts grow. Increasing N
-      shrinks Δ and pushes that boundary to smaller separations.
+      C₆ is calibrated against the Hamaker continuum at a reference separation D<sub>ref</sub> = R,
+      so the bead sum converges toward the continuum result as N → ∞ (Δ → 0). The key distinction
+      is <em>geometric</em>: the bead sum directly computes the true pairwise interaction for the
+      discrete geometry, while the DA applies only a proximity-force geometric shortcut.
+      As D/R grows the DA overestimates attraction; the bead sum doesn't.
     </p>
     <p style="margin-top:8px;">
       Bead brightness encodes proximity to the opposite object — atoms nearest the gap glow
@@ -468,9 +572,59 @@ const PRESETS = {
   au:   { A: 45.0 },
 };
 
-// Max atoms allowed per sphere for each geometry (sphere-flat needs 6× more for the slab)
-const N_MAX_SS = 2000;
-const N_MAX_SF =  500; // slab gets ~6× atoms → keep pairs manageable
+// Max atoms per sphere per geometry.
+// Sphere-flat slab has ~6× more beads at the same density; cap it lower so the
+// main-thread calibration step (one rawPairSum) stays under ~200 ms.
+const N_MAX_SS = 5000;
+const N_MAX_SF = 1500;
+
+// ================================================================ web worker
+// Inner-loop code runs in parallel worker threads.  Embedded as a Blob URL so
+// no separate worker.js file is needed and the applet stays self-contained.
+const WORKER_SRC = `
+self.onmessage = function({ data }) {
+  const { b1x, b1y, b1z, N1, b2x, b2y, b2z, N2,
+          D_chunk, startIdx, isSS, R, C6, KBT_ZJ } = data;
+  const r2min = 0.09;           // (0.3 nm)^2 hard cutoff
+  const out   = new Float64Array(D_chunk.length);
+
+  for (let di = 0; di < D_chunk.length; di++) {
+    const D   = D_chunk[di];
+    const ox2 = isSS ? 2 * R + D : 0;   // x-offset of obj2 centre
+    const oz2 = isSS ? 0         : R + D; // z-offset of obj2 centre
+
+    let S = 0.0;
+    for (let i = 0; i < N1; i++) {
+      // Pull the obj2-offset subtraction out of the j-loop
+      const px = b1x[i] - ox2;
+      const py = b1y[i];           // oy2 is always 0
+      const pz = b1z[i] - oz2;
+      for (let j = 0; j < N2; j++) {
+        const dx = px - b2x[j];
+        const dy = py - b2y[j];
+        const dz = pz - b2z[j];
+        const r2 = dx * dx + dy * dy + dz * dz;
+        if (r2 < r2min) continue;
+        S -= 1.0 / (r2 * r2 * r2);
+      }
+    }
+    out[di] = S * C6 / KBT_ZJ;
+  }
+  self.postMessage({ out, startIdx }, [out.buffer]);
+};
+`;
+
+let _workerURL = null;
+function getWorkerURL() {
+  if (!_workerURL) {
+    const blob = new Blob([WORKER_SRC], { type: 'application/javascript' });
+    _workerURL = URL.createObjectURL(blob);
+  }
+  return _workerURL;
+}
+
+let _workers    = [];   // active Worker instances
+let _generation = 0;    // incremented on each new precompute; workers check this to self-cancel
 
 // ================================================================ state
 const S = {
@@ -585,22 +739,20 @@ function rawPairSum(bA, oA, bB, oB) {
   return S; // < 0
 }
 
-// ================================================================ precompute (slow path)
+// ================================================================ precompute helpers
 
-function precompute() {
+// Synchronous part: bead generation + C6 calibration + analytical curves.
+// Runs on the main thread (fast even at N=5000 — calibration is one rawPairSum).
+function precomputeSync() {
   const { geometry, R, A } = S;
-  // Cap N per geometry to keep compute tractable
   const N_cap = geometry === 'sf' ? N_MAX_SF : N_MAX_SS;
   const N_eff = Math.min(S.N, N_cap);
 
-  // Update hint if capped
-  const hint = document.getElementById('hint-N');
-  if (S.N > N_cap)
-    hint.textContent = `capped at ${N_cap} for ${geometry === 'sf' ? 'Sphere–Flat' : 'Sphere–Sphere'}`;
-  else
-    hint.textContent = 'more atoms → denser packing, slower compute';
+  document.getElementById('hint-N').textContent = S.N > N_cap
+    ? `capped at ${N_cap} for ${geometry === 'sf' ? 'Sphere–Flat' : 'Sphere–Sphere'}`
+    : 'more atoms → denser packing, slower compute';
 
-  // 1. Generate bead sets
+  // 1. Generate beads
   const sp1 = generateSphereBeads(R, N_eff);
   const sp2 = geometry === 'ss'
     ? generateSphereBeads(R, N_eff)
@@ -610,17 +762,15 @@ function precompute() {
   S.b2x = sp2.x; S.b2y = sp2.y; S.b2z = sp2.z; S.N2 = sp2.n;
   S.delta = sp1.spacing;
 
+  // 2. Calibrate C6 at D_ref = R (one pairwise sum — fast in main thread)
   const b1 = { x: S.b1x, y: S.b1y, z: S.b1z, n: S.N1 };
   const b2 = { x: S.b2x, y: S.b2y, z: S.b2z, n: S.N2 };
-
-  // 2. Calibrate C6: match exact Hamaker at D_ref = R
-  const D_ref  = R;
-  const o2_ref = obj2Offset(geometry, R, D_ref);
+  const o2_ref = obj2Offset(geometry, R, R);
   const Sraw   = rawPairSum(b1, [0, 0, 0], b2, o2_ref);
-  const Eref   = energyExact(geometry, A, R, D_ref);
+  const Eref   = energyExact(geometry, A, R, R);
   S.C6 = (Sraw !== 0) ? Eref / Sraw : 1e-30;
 
-  // 3. Log-spaced D array from just above bead contact to 5R
+  // 3. D array + analytical curves (trivial, no bead sum)
   const D_min  = Math.max(0.15, S.delta * 0.55);
   const D_max  = 5 * R;
   const nPts   = 80;
@@ -628,24 +778,65 @@ function precompute() {
   const logMax = Math.log10(D_max);
 
   const D_arr   = new Float64Array(nPts);
-  const E_num   = new Float64Array(nPts);
   const E_da    = new Float64Array(nPts);
   const E_exact = new Float64Array(nPts);
   const err_da  = new Float64Array(nPts);
 
   for (let i = 0; i < nPts; i++) {
-    const D    = Math.pow(10, logMin + (logMax - logMin) * i / (nPts - 1));
-    D_arr[i]   = D;
-    const o2   = obj2Offset(geometry, R, D);
-    E_num[i]   = rawPairSum(b1, [0, 0, 0], b2, o2) * S.C6 / KBT_ZJ;
-    E_da[i]    = energyDA(geometry, A, R, D)          / KBT_ZJ;
-    E_exact[i] = energyExact(geometry, A, R, D)       / KBT_ZJ;
-    const ref  = Math.abs(E_exact[i]);
-    err_da[i]  = ref > 1e-12 ? Math.abs(E_da[i] - E_exact[i]) / ref : 0;
+    const D      = Math.pow(10, logMin + (logMax - logMin) * i / (nPts - 1));
+    D_arr[i]     = D;
+    E_da[i]      = energyDA(geometry, A, R, D)    / KBT_ZJ;
+    E_exact[i]   = energyExact(geometry, A, R, D) / KBT_ZJ;
+    const ref    = Math.abs(E_exact[i]);
+    err_da[i]    = ref > 1e-12 ? Math.abs(E_da[i] - E_exact[i]) / ref : 0;
   }
 
-  S.D_arr = D_arr; S.E_num = E_num; S.E_da = E_da;
-  S.E_exact = E_exact; S.err_da = err_da;
+  S.D_arr = D_arr; S.E_da = E_da; S.E_exact = E_exact; S.err_da = err_da;
+  S.E_num = null; // will be filled by workers
+}
+
+// Asynchronous part: spawn workers to compute E_num across the D array in parallel.
+// Returns a Promise<Float64Array|null>; null means the computation was superseded.
+function computeNumericalAsync(gen) {
+  return new Promise((resolve) => {
+    const nPts     = S.D_arr.length;
+    const nWorkers = Math.min(Math.max(navigator.hardwareConcurrency || 2, 1), 4);
+    const chunk    = Math.ceil(nPts / nWorkers);
+    const E_num    = new Float64Array(nPts);
+    let   done     = 0;
+    let   launched = 0;
+
+    for (let wi = 0; wi < nWorkers; wi++) {
+      const start = wi * chunk;
+      const end   = Math.min(start + chunk, nPts);
+      if (start >= nPts) break;
+      launched++;
+
+      const D_slice = S.D_arr.slice(start, end); // copy — transfer to worker
+      const worker  = new Worker(getWorkerURL());
+      _workers.push(worker);
+
+      worker.onmessage = ({ data: { out, startIdx } }) => {
+        if (_generation !== gen) { resolve(null); return; }
+        E_num.set(out, startIdx);
+        done++;
+        setProgress(done / launched);
+        if (done === launched) resolve(E_num);
+      };
+      worker.onerror = () => { if (_generation === gen) resolve(null); };
+
+      // Bead arrays are NOT in the transfer list — they get structured-cloned
+      // so each worker has its own copy and the main thread keeps its copy too.
+      worker.postMessage({
+        b1x: S.b1x, b1y: S.b1y, b1z: S.b1z, N1: S.N1,
+        b2x: S.b2x, b2y: S.b2y, b2z: S.b2z, N2: S.N2,
+        D_chunk: D_slice, startIdx: start,
+        isSS: S.geometry === 'ss',
+        R: S.R, C6: S.C6, KBT_ZJ,
+      }, [D_slice.buffer]); // transfer only the D slice (cheap, unique per worker)
+    }
+    if (launched === 0) resolve(new Float64Array(nPts));
+  });
 }
 
 // ================================================================ canvas
@@ -882,8 +1073,8 @@ function buildTraces() {
   const D = Array.from(S.D_arr);
   const traces = [];
   if (S.showExact && S.E_exact)
-    traces.push({ x: D, y: Array.from(S.E_exact), name: 'Exact Hamaker', mode: 'lines',
-      line: { color: '#22aa66', width: 2, dash: 'dot' } });
+    traces.push({ x: D, y: Array.from(S.E_exact), name: 'Hamaker continuum', mode: 'lines',
+      line: { color: '#558866', width: 1.5, dash: 'dot' } });
   if (S.showNum && S.E_num)
     traces.push({ x: D, y: Array.from(S.E_num), name: 'Numerical (bead sum)', mode: 'lines',
       line: { color: '#2575e8', width: 2.5 } });
@@ -996,36 +1187,152 @@ function updateD(val) {
   if (S.plotInit && S.D_arr)
     Plotly.relayout('energyPlot', { shapes: buildShapes(), annotations: buildAnnotations() });
   scheduleCanvas();
+  updateRingsSVG();
   updateInfoPanel();
 }
 
-// ================================================================ slow path — full recompute
+// ================================================================ slow path — full recompute (async)
 
-function fullUpdate() {
-  // Show computing overlay
+function setProgress(frac) {
+  document.getElementById('progressFill').style.width = Math.round(frac * 100) + '%';
+}
+
+function clampDSlider() {
+  const dSlider = document.getElementById('sl-D');
+  const newMax  = (4 * S.R).toFixed(2);
+  dSlider.max   = newMax;
+  if (S.D > 4 * S.R) {
+    S.D = parseFloat((S.R * 0.1).toFixed(2));
+    dSlider.value = S.D;
+    document.getElementById('val-D').textContent = S.D.toFixed(2) + ' nm';
+  }
+}
+
+async function fullUpdate() {
+  _generation++;
+  const gen = _generation;
+  _workers.forEach(w => w.terminate());
+  _workers = [];
+
+  setProgress(0);
   document.getElementById('computingOverlay').classList.add('visible');
 
-  // Defer compute one frame so the overlay renders first
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      precompute();
+  // Phase 1 (sync): bead generation + calibration + analytical curves — show immediately
+  precomputeSync();
+  clampDSlider();
+  updatePlot();       // shows E_da + Hamaker continuum right away
+  scheduleCanvas();
+  updateRingsSVG();
+  updateInfoPanel();
 
-      // Clamp D slider range to new R
-      const dSlider = document.getElementById('sl-D');
-      const newMax  = (4 * S.R).toFixed(2);
-      dSlider.max   = newMax;
-      if (S.D > 4 * S.R) {
-        S.D = parseFloat((S.R * 0.1).toFixed(2));
-        dSlider.value = S.D;
-        document.getElementById('val-D').textContent = S.D.toFixed(2) + ' nm';
-      }
+  // Phase 2 (async): numerical bead sum via workers
+  const E_num = await computeNumericalAsync(gen);
+  if (E_num === null) return; // superseded by a newer call
 
-      updatePlot();
-      scheduleCanvas();
-      updateInfoPanel();
-      document.getElementById('computingOverlay').classList.remove('visible');
-    }, 0);
-  });
+  S.E_num = E_num;
+  setProgress(1);
+  document.getElementById('computingOverlay').classList.remove('visible');
+  updatePlot();       // adds the numerical curve
+  updateInfoPanel();
+}
+
+// ================================================================ viz tab switcher
+
+function showVizTab(id) {
+  document.querySelectorAll('.viz-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.viz-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('vpanel-' + id).classList.add('active');
+  document.getElementById('vtab-'   + id).classList.add('active');
+  if (id === 'atoms') scheduleCanvas();
+}
+
+// ================================================================ ring-decomp SVG updater
+
+function updateRingsSVG() {
+  const svg = document.getElementById('ringSVG');
+  if (!svg) return;
+  const { R, D } = S;
+  const flat_y = 238, cx = 300;
+
+  // Scale sphere radius to pixels — max 120 px; min 20 px for tiny spheres
+  let R_px = Math.max(Math.min(R * 8, 120), 20);
+  // Proportional gap, capped so sphere fits; keep at least 6 px visible
+  let D_px = Math.max(D / R * R_px * 1.6, 6);
+  // Clamp R_px so sphere top stays ≥ 5 px from SVG top
+  R_px = Math.min(R_px, (flat_y - D_px - 10) / 2);
+  D_px = Math.max(D / R * R_px * 1.6, 6);
+
+  const sphere_cy     = flat_y - D_px - R_px;
+  const sphere_bottom = sphere_cy + R_px;
+
+  // Sphere
+  const sp = document.getElementById('rs-sphere');
+  sp.setAttribute('cy', sphere_cy);
+  sp.setAttribute('r',  R_px);
+
+  // Center dot + R line
+  document.getElementById('rs-cdot').setAttribute('cx', cx);
+  document.getElementById('rs-cdot').setAttribute('cy', sphere_cy);
+  const rLine = document.getElementById('rs-Rline');
+  rLine.setAttribute('x1', cx);       rLine.setAttribute('y1', sphere_cy);
+  rLine.setAttribute('x2', cx+R_px);  rLine.setAttribute('y2', sphere_cy);
+  const rLbl = document.getElementById('rs-Rlbl');
+  rLbl.setAttribute('x', cx + R_px * 0.58);
+  rLbl.setAttribute('y', sphere_cy - 5);
+  rLbl.textContent = `R = ${R >= 10 ? R.toFixed(0) : R.toFixed(1)} nm`;
+
+  // D arrow (placed to the right of sphere edge)
+  const ax = Math.min(cx + R_px * 0.62 + 8, cx + 240);
+  const dLine = document.getElementById('rs-Dline');
+  dLine.setAttribute('x1', ax); dLine.setAttribute('y1', sphere_bottom + 1);
+  dLine.setAttribute('x2', ax); dLine.setAttribute('y2', flat_y - 1);
+  const dLbl = document.getElementById('rs-Dlbl');
+  dLbl.setAttribute('x', ax + 6);
+  dLbl.setAttribute('y', (sphere_bottom + flat_y) / 2);
+  dLbl.textContent = `D = ${D.toFixed(2)} nm`;
+
+  // Rings at the gap — 5 rings with increasing radius
+  const ringFracs = [0.10, 0.24, 0.40, 0.56, 0.72];
+  for (let i = 0; i < 5; i++) {
+    const rx_i = ringFracs[i] * R_px;
+    const r_nm = ringFracs[i] * R;
+    const h_nm = D + r_nm * r_nm / (2 * R);
+    // Log-scale vertical offset from flat so even h(r) ≫ D stays within D_px
+    const h_offset = Math.min(Math.log(h_nm / D + 1) * D_px * 0.55, D_px * 0.92);
+    const ring_cy  = flat_y - h_offset;
+    const el = document.getElementById('rs-ring' + i);
+    el.setAttribute('cx', cx);
+    el.setAttribute('cy', ring_cy);
+    el.setAttribute('rx', rx_i);
+    el.setAttribute('ry', Math.max(rx_i * 0.13, 3));
+  }
+
+  // h(r) label on outermost ring
+  const r4_px  = ringFracs[4] * R_px;
+  const r4_nm  = ringFracs[4] * R;
+  const h4_nm  = D + r4_nm * r4_nm / (2 * R);
+  const h4_off = Math.min(Math.log(h4_nm / D + 1) * D_px * 0.55, D_px * 0.92);
+  const ring4_cy = flat_y - h4_off;
+  const hx = Math.min(cx + r4_px + 6, 560);
+  const hLine = document.getElementById('rs-hline');
+  hLine.setAttribute('x1', hx); hLine.setAttribute('y1', ring4_cy);
+  hLine.setAttribute('x2', hx); hLine.setAttribute('y2', flat_y);
+  const hLbl = document.getElementById('rs-hlbl');
+  hLbl.setAttribute('x', hx + 4);
+  hLbl.setAttribute('y', (ring4_cy + flat_y) / 2);
+
+  // Validity indicator
+  const DR = D / R;
+  const [bg, stroke, color, label] =
+    DR < 0.05 ? ['#0d1a0d', '#22aa44', '#22cc55', 'DA valid (D/R ≪ 1)'] :
+    DR < 0.30 ? ['#1a1508', '#bb8800', '#ddaa00', 'DA marginal']          :
+                ['#1a0808', '#aa2222', '#ff5555', 'DA breaking down'];
+  document.getElementById('rs-valid-box').setAttribute('fill',   bg);
+  document.getElementById('rs-valid-box').setAttribute('stroke', stroke);
+  document.getElementById('rs-valid-lbl').setAttribute('fill', color);
+  document.getElementById('rs-valid-lbl').textContent = label;
+  document.getElementById('rs-DR-txt').setAttribute('fill', color);
+  document.getElementById('rs-DR-txt').textContent = `D/R = ${DR.toFixed(3)}`;
 }
 
 // ================================================================ event handlers
@@ -1078,6 +1385,7 @@ window.addEventListener('load', () => {
   document.getElementById('val-D').textContent = S.D.toFixed(2) + ' nm';
   document.getElementById('sl-D').value = S.D;
   drawScaleBar();
+  updateRingsSVG();
   fullUpdate();
 });
 </script>
