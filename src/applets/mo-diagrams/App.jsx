@@ -207,16 +207,122 @@ function LevelNode({ node, flagged, onDragBegin, onCycle, onRename, onDelete, on
 const levelElectrons = (n) =>
   n.type === "deg" ? n.eA + n.eB : n.type === "trip" ? n.eA + n.eB + n.eC : n.e;
 
-function evaluate(mol, nodes) {
+// Match one side's AO nodes against an atom's expected orbital set.
+// Returns { setOk, occOk, flagged:Set } — occ/Hund's only checked in config mode.
+function matchAtomSide(groupNodes, atom, mode) {
+  const flagged = new Set();
+  const used = new Array(atom.orbitals.length).fill(null);
+  const extra = [];
+  groupNodes.forEach((n) => {
+    const oi = atom.orbitals.findIndex(
+      (o, i) => used[i] === null && n.type === o.type && matchesKeyLabel(n.label, o)
+    );
+    if (oi >= 0) used[oi] = n;
+    else extra.push(n);
+  });
+  const missing = atom.orbitals.filter((_, i) => used[i] === null);
+  const setOk = missing.length === 0 && extra.length === 0;
+  extra.forEach((n) => flagged.add(n.id));
+  let occOk = true;
+  if (setOk && mode === "config") {
+    atom.orbitals.forEach((o, i) => {
+      const n = used[i];
+      const occ = levelElectrons(n);
+      if (occ !== o.occ) {
+        flagged.add(n.id);
+        occOk = false;
+        return;
+      }
+      if (o.type === "deg" || o.type === "trip") {
+        const slots = o.type === "trip" ? [n.eA, n.eB, n.eC] : [n.eA, n.eB];
+        const singles = slots.filter((x) => x === 1).length;
+        const cap = o.type === "trip" ? 3 : 2;
+        const expected = occ <= cap ? occ : 2 * cap - occ;
+        if (singles !== expected) {
+          flagged.add(n.id);
+          occOk = false;
+        }
+      }
+    });
+  }
+  return { setOk, occOk, flagged };
+}
+
+// Grade the atomic-orbital side. Pure; exported for unit testing.
+export function gradeAtomicOrbitals(mol, aoNodes, canvasWidth) {
   const items = [];
   const flagged = new Set();
-  const ordered = [...nodes].sort((a, b) => b.y - a.y); // bottom -> top
+  if (!mol.atoms) return { items, flagged };
+
+  if (aoNodes.length === 0) {
+    items.push({
+      kind: "warn",
+      text: "Now add the atomic orbitals that combine to form these MOs: place one atom's orbitals on the left, the other atom's on the right.",
+    });
+    return { items, flagged };
+  }
+
+  const center = (canvasWidth || 600) / 2;
+  const left = aoNodes.filter((n) => n.x + n.w / 2 < center);
+  const right = aoNodes.filter((n) => n.x + n.w / 2 >= center);
+  const [atom0, atom1] = mol.atoms.list;
+  const mode = mol.atoms.mode;
+
+  // Orientation is arbitrary: try both atom-to-side assignments.
+  const orientations = [
+    { L: matchAtomSide(left, atom0, mode), R: matchAtomSide(right, atom1, mode) },
+    { L: matchAtomSide(left, atom1, mode), R: matchAtomSide(right, atom0, mode) },
+  ];
+  const score = (o) =>
+    (o.L.setOk ? 2 : 0) + (o.R.setOk ? 2 : 0) + (o.L.occOk ? 1 : 0) + (o.R.occOk ? 1 : 0);
+  const chosen = orientations.reduce((best, o) => (score(o) > score(best) ? o : best), orientations[0]);
+
+  if (!(chosen.L.setOk && chosen.R.setOk)) {
+    chosen.L.flagged.forEach((id) => flagged.add(id));
+    chosen.R.flagged.forEach((id) => flagged.add(id));
+    const wantSets = mol.atoms.list
+      .map((a) => `${a.element} {${a.orbitals.map((o) => o.label).join(", ")}}`)
+      .join(" and ");
+    items.push({
+      kind: "danger",
+      text: `The atomic-orbital sides don't match the two atoms. Expected ${wantSets} — put one atom's orbitals on the left and the other's on the right.`,
+    });
+    return { items, flagged };
+  }
+
+  if (mode === "config") {
+    if (!(chosen.L.occOk && chosen.R.occOk)) {
+      chosen.L.flagged.forEach((id) => flagged.add(id));
+      chosen.R.flagged.forEach((id) => flagged.add(id));
+      items.push({
+        kind: "warn",
+        text: "The atomic orbitals are right, but some atomic electron configurations are off. Use each atom's neutral ground-state configuration, and within a p set put one electron in each of px, py, pz before pairing (Hund's rule).",
+      });
+    }
+  } else {
+    const aoTotal = aoNodes.reduce((s, n) => s + levelElectrons(n), 0);
+    if (aoTotal !== mol.atoms.total) {
+      items.push({
+        kind: "warn",
+        text: `The atomic orbitals are right, but you have placed ${aoTotal} atomic electrons; the two atoms together should bring ${mol.atoms.total}. (Which atomic orbital holds the charge isn't graded — only the total.)`,
+      });
+    }
+  }
+  return { items, flagged };
+}
+
+export function evaluate(mol, nodes, canvasWidth) {
+  const items = [];
+  const flagged = new Set();
+  const moNodes = nodes.filter((n) => (n.role || "mo") !== "ao");
+  const aoNodes = nodes.filter((n) => n.role === "ao");
+  const ordered = [...moNodes].sort((a, b) => b.y - a.y); // bottom -> top
   const total = ordered.reduce((s, n) => s + levelElectrons(n), 0);
 
   if (total !== mol.totalValence) {
     items.push({
       kind: "warn",
-      text: `You have placed ${total} electrons; ${mol.title} needs ${mol.totalValence}. ${mol.electronNote} Fill from the bottom up.`,
+      text: `You have placed ${total} electrons in the molecular orbitals; ${mol.title} needs ${mol.totalValence}. ${mol.electronNote} Fill from the bottom up.`,
     });
   }
 
@@ -281,6 +387,10 @@ function evaluate(mol, nodes) {
         text: "Right levels and order, but some occupancies are off. Fill lowest first, and within a degenerate π set place one electron in each component before pairing.",
       });
   }
+
+  const ao = gradeAtomicOrbitals(mol, aoNodes, canvasWidth);
+  ao.items.forEach((it) => items.push(it));
+  ao.flagged.forEach((id) => flagged.add(id));
 
   const solved = items.length === 0;
   if (solved)
@@ -398,7 +508,8 @@ function DiagramBuilder({ mol, state, onState, onStatus }) {
   const anchor = (n) => ({ x: n.x + n.w / 2, y: n.y + 40 });
 
   const check = () => {
-    const res = evaluate(mol, nodes);
+    const cw = canvasRef.current ? canvasRef.current.clientWidth : 600;
+    const res = evaluate(mol, nodes, cw);
     setFlagged(res.flagged);
     setFeedback(res.items);
     setShowQ(res.solved);
