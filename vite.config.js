@@ -12,6 +12,7 @@ export default defineConfig({
         dlvo:      resolve(__dirname, 'src/applets/dlvo/index.html'),
         derjaguin: resolve(__dirname, 'src/applets/derjaguin/index.html'),
         crystallography: resolve(__dirname, 'src/applets/crystallography/index.html'),
+        'mo-diagrams': resolve(__dirname, 'src/applets/mo-diagrams/index.html'),
       },
     },
   },
