@@ -153,12 +153,12 @@ function LevelNode({ node, flagged, onDragBegin, onCycle, onRename, onDelete, on
         </span>
       </div>
 
-      {node.type === "deg" ? (
-        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          {[0, 1].map((half) => {
-            const e = half === 0 ? node.eA : node.eB;
+      {node.type === "deg" || node.type === "trip" ? (
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          {(node.type === "trip" ? [0, 1, 2] : [0, 1]).map((slot) => {
+            const e = slot === 0 ? node.eA : slot === 1 ? node.eB : node.eC;
             return (
-              <div key={half} onClick={() => onCycle(node, half)} style={{ width: 44, cursor: "pointer" }}>
+              <div key={slot} onClick={() => onCycle(node, slot)} style={{ width: 40, cursor: "pointer" }}>
                 <div style={{ height: 20, display: "flex", justifyContent: "center", alignItems: "center" }}>
                   <Arrows up={e >= 1} down={e >= 2} />
                 </div>
@@ -204,7 +204,8 @@ function LevelNode({ node, flagged, onDragBegin, onCycle, onRename, onDelete, on
 // Evaluation (pure). Returns { solved, flagged:Set, items:[{kind,text}] }.
 // Order-based: relies on vertical position, never absolute coordinates.
 // ----------------------------------------------------------------------------
-const levelElectrons = (n) => (n.type === "deg" ? n.eA + n.eB : n.e);
+const levelElectrons = (n) =>
+  n.type === "deg" ? n.eA + n.eB : n.type === "trip" ? n.eA + n.eB + n.eC : n.e;
 
 function evaluate(mol, nodes) {
   const items = [];
@@ -295,7 +296,7 @@ function evaluate(mol, nodes) {
 function DiagramBuilder({ mol, state, onState, onStatus }) {
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
-  const [hint, setHint] = useState("Add a level, drag it to set its energy, click the line for electrons, double-click the label to rename.");
+  const [hint, setHint] = useState("Build the MOs down the centre (lowest energy at the bottom) and the atomic orbitals on the sides: one atom's on the left, the other's on the right. Drag to position, click a line for electrons, double-click a label to rename.");
   const [feedback, setFeedback] = useState(null);
   const [flagged, setFlagged] = useState(new Set());
   const [showQ, setShowQ] = useState(state.solved || false);
@@ -305,25 +306,32 @@ function DiagramBuilder({ mol, state, onState, onStatus }) {
 
   const patch = (delta) => onState({ ...state, ...delta });
 
-  const addNode = (type) => {
-    const w = type === "deg" ? 120 : 90;
+  const addNode = ({ type, role, label }) => {
+    const w = type === "trip" ? 150 : type === "deg" ? 120 : 90;
     const cw = canvasRef.current ? canvasRef.current.clientWidth : 600;
     const id = "n" + (uid + 1);
+    // AO nodes spawn near the left edge so the student drags them into the
+    // correct atom column; MO nodes spawn centred.
+    const x = role === "ao" ? 20 : cw / 2 - w / 2;
     patch({
       uid: uid + 1,
       nodes: [
         ...nodes,
-        { id, type, x: cw / 2 - w / 2, y: 60 + (nodes.length * 46) % 320, w, label: type === "deg" ? "π2p" : "σ2s", e: 0, eA: 0, eB: 0 },
+        { id, type, role, x, y: 60 + (nodes.length * 46) % 320, w, label, e: 0, eA: 0, eB: 0, eC: 0 },
       ],
     });
   };
 
-  const cycle = (node, half) => {
+  const cycle = (node, slot) => {
     setFlagged(new Set());
     patch({
       nodes: nodes.map((n) => {
         if (n.id !== node.id) return n;
-        if (n.type === "deg") return half === 0 ? { ...n, eA: (n.eA + 1) % 3 } : { ...n, eB: (n.eB + 1) % 3 };
+        if (n.type === "deg" || n.type === "trip") {
+          if (slot === 0) return { ...n, eA: (n.eA + 1) % 3 };
+          if (slot === 1) return { ...n, eB: (n.eB + 1) % 3 };
+          return { ...n, eC: (n.eC + 1) % 3 };
+        }
         return { ...n, e: (n.e + 1) % 3 };
       }),
     });
@@ -421,8 +429,10 @@ function DiagramBuilder({ mol, state, onState, onStatus }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        <Button onClick={() => addNode("single")}>+ σ level</Button>
-        <Button onClick={() => addNode("deg")}>+ π level (degenerate)</Button>
+        <Button onClick={() => addNode({ type: "single", role: "mo", label: "σ2s" })}>+ σ level</Button>
+        <Button onClick={() => addNode({ type: "deg", role: "mo", label: "π2p" })}>+ π level (degenerate)</Button>
+        <Button onClick={() => addNode({ type: "single", role: "ao", label: "2s" })}>+ s orbital</Button>
+        <Button onClick={() => addNode({ type: "trip", role: "ao", label: "2p" })}>+ p orbital</Button>
         <Button onClick={check}>Check diagram</Button>
         <Button onClick={clearAll}>Clear</Button>
       </div>
